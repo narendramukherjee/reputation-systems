@@ -1,1 +1,1 @@
-A GUI that draws the network over time with infected and uninfected nodes in diffrenet colors.
+A GUI that plots the evolution of the histogram of the ratings over time together with the average rating.
