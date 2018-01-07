@@ -1,3 +1,9 @@
+#figure outputs
+*.png
+reviews_simulator/case1/
+#pycharm stuff
+reviews_simulator/.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
