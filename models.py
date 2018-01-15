@@ -10,7 +10,7 @@ import copy
 
 RD.seed()
 
-class product():
+class product(): #  sets the features, prices and other properties of the products
     def __init__(self):
         self.set_missing_product_params()
 
@@ -33,7 +33,7 @@ class product():
             self.params['true_qualities'] = list(np.random.normal(self.params['neutral_population_qualities'],
                                                                   self.params['qualities_std'],self.params['number_of_products']))
 
-class consumer(product):
+class consumer(product): #implements purchase decisions as well as the decision to rate the product or not.
     def __init__(self):
         self.set_missing_consumer_params()
         super(consumer, self).__init__()
@@ -86,7 +86,7 @@ class consumer(product):
 
 
 
-class market(consumer):
+class market(consumer):  #implements evolution of ratings and keeps track of the public perception of the product qualities as new consumers interact with the reputation system and rate the products.
     def __init__(self, params ={}):
         self.fixed_params = copy.deepcopy(params)
         self.params = params
