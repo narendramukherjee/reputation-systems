@@ -215,7 +215,7 @@ class market(consumer):
 
     def genTorchSample(self):
         df = self.generateTimeseries()
-        data = torch.FloatTensor(df.values[:, 0:5])
+        data = torch.FloatTensor(df.values[:, 0:5].astype(float))
         label_of_data = torch.LongTensor([int(self.params['rate_decision_threshold']>0)])
         return label_of_data, data
 

@@ -30,7 +30,7 @@ if __name__ == '__main__':
     model.empty_losses()
 
     print('pretraining performance on the traning set')
-    training_sample = dynamics.genTorchDataset(240)
+    training_sample = dynamics.genTorchDataset(2)
     print(100 * model.evaluateAveragePerformance(training_sample))
 
     print('doTraining on the traning set')
