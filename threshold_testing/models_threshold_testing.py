@@ -10,6 +10,7 @@ import random as RD
 import scipy.stats as st
 import pandas as pd
 import copy
+import pickle
 
 RD.seed()
 
@@ -218,9 +219,15 @@ class market(consumer):
         label_of_data = torch.LongTensor([int(self.params['rate_decision_threshold']>0)])
         return label_of_data, data
 
-    def genTorchDataset(self, dataset_size=1000):
-        simulation_results = []
-        for iter in range(dataset_size):
-            label_of_data, data = self.genTorchSample()
-            simulation_results.append((label_of_data, data))
+    def genTorchDataset(self, dataset_size=1000,filename = 'dataset.pkl', LOAD=False, SAVE = False ):
+        if LOAD:
+            simulation_results = pickle.load(open('./data/'+filename,'rb'))
+        else:
+            simulation_results = []
+            for iter in range(dataset_size):
+                label_of_data, data = self.genTorchSample()
+                simulation_results.append((label_of_data, data))
+            if SAVE:
+                pickle.dump(simulation_results, open('./data/'+filename, 'wb'))
+
         return simulation_results
