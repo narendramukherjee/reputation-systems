@@ -1,3 +1,6 @@
+#slurm files
+*.out
+*.slurm
 #Data folders
 threshold_testing/data/
 #figure outputs
