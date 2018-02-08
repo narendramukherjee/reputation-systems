@@ -1,6 +1,7 @@
 # RNN for Inferring the thresholds for the decision to leave a review.
 # The input data is the time-series of the histograms of reviews put over time
-
+import torch
+import copy
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -16,22 +17,11 @@ import pickle
 
 
 import random
-from models_threshold_testing import  *
+#from models_threshold_testing import *
+
+import settings
 
 random.seed()
-
-n_hidden = 16  # number of units in each layer of the recurrent unit
-NUM_LAYERS = 3  # numer of layers in each recurrent unit
-BATCH_SIZE = 4
-OUTPUT_SIZE = 2
-
-
-global number_of_features
-
-#number_of_features = 1 # each point in the input time series is an average review
-
-number_of_features = 5# each point in the input time series is a oistogram comprised of
-# five number for each of the five review levels (1,2,3,4,5)
 
 SENTINEL = object()
 
@@ -43,7 +33,8 @@ def timeSince(since):
     return '%dm %ds' % (m, s)
 
 class RNN(nn.Module):
-    def __init__(self, input_size = number_of_features , hidden_size = n_hidden, num_layers = NUM_LAYERS):
+    def __init__(self, input_size = settings.number_of_features,
+                 hidden_size = settings.n_hidden, num_layers = settings.NUM_LAYERS):
         super(RNN, self).__init__()
         self.softmax = nn.Softmax()
         self.hidden_size = hidden_size
@@ -56,7 +47,7 @@ class RNN(nn.Module):
             batch_first=False,
         )
 
-        self.out_type = nn.Linear(hidden_size, OUTPUT_SIZE)
+        self.out_type = nn.Linear(hidden_size, settings.OUTPUT_SIZE)
         self.training_losses = []
 
     def forward(self, input, hidden):
@@ -83,7 +74,7 @@ class RNN(nn.Module):
         _, prediction = torch.topk(output_label, 1)
         return prediction.data[0][0], np.exp(output_label.data[0][prediction.data[0][0]])
 
-    def evaluateAveragePerformance(self, dataset, n_iters  = SENTINEL ):
+    def evaluateAveragePerformance(self, dataset, n_iters = SENTINEL):
         random.shuffle(dataset)
         if n_iters is SENTINEL:
             n_iters = len(dataset)

@@ -107,7 +107,7 @@ class consumer(product):
 class market(consumer):
     def __init__(self, params ={}):
         self.fixed_params = copy.deepcopy(params)
-        self.params = params
+        self.params = copy.deepcopy(params)
         self.set_missing_market_params()
         super(market, self).__init__()
 
