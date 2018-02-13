@@ -1,3 +1,8 @@
+.dropbox
+.idea/
+
+
+
 #slurm files
 *.out
 *.slurm

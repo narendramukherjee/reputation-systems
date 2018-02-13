@@ -49,7 +49,6 @@ class product():
             self.params['input_histograms_are_normalized'] = False  # histograms are normalized to the frequencies rather
             # than showing the total counts
 
-
 class consumer(product):
     def __init__(self):
         self.set_missing_consumer_params()
@@ -69,7 +68,6 @@ class consumer(product):
         self.consumer_private_fit = list(self.params['consumer_fit_distribution'].rvs(self.params['number_of_products']))
         self.consumer_private_alpha = np.random.normal(self.params['population_alpha'], 1)
         self.consumer_private_beta = np.random.normal(self.params['population_beta'], 1)
-
 
     def make_purchase(self):
         expected_utilities = list(self.consumer_private_beta * np.array(self.params['product_features'])
@@ -229,5 +227,4 @@ class market(consumer):
                 simulation_results.append((label_of_data, data))
             if SAVE:
                 pickle.dump(simulation_results, open('./data/'+filename, 'wb'))
-
         return simulation_results

@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import time
 import math
 import matplotlib
+import numpy as np
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

@@ -12,6 +12,7 @@ params = {'product_tracked': 0,
               # 'input_type': 'averages',
               'input_type': 'histograms',
               # 'input_histograms_are_normalized': True,
+              'number_of_rating_levels': 5,
               }
 
 

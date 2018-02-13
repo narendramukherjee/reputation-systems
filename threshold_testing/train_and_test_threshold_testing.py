@@ -5,6 +5,8 @@ from models_threshold_testing import *
 
 RD.seed()
 
+
+
 if __name__ == '__main__':
 
     dynamics = market(settings.params)
