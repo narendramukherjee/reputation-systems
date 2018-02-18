@@ -1,7 +1,7 @@
 .dropbox
 .idea/
 
-
+single_product_analysis/data/
 
 #slurm files
 *.out

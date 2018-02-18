@@ -2,7 +2,12 @@
 # classification
 
 from inference_threshold_testing import *
-from models_threshold_testing import *
+
+import random as RD
+
+import pandas as pd
+
+import settings
 
 import os
 
@@ -27,7 +32,7 @@ if __name__ == '__main__':
 
     model = RNN()
 
-    model = model.load_from_file('model_tuned_49000.pkl')
+    model = model.load_from_file('model_tuned_B0067PLM5E.pkl')
 
     current_working_directory = os.getcwd()
     observed_timeseries = pd.read_csv(current_working_directory + '/data/'+'asus_time_series.txt', sep='\t')

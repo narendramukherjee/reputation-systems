@@ -14,25 +14,23 @@ tracked_product_ID = 'B0067PLM5E'
 
 def process_observed_params(observed_params, tracked_product_ID):
     params = dict()
-    params['number_of_products'] = len(observed_params['product_indices'])
     params['product_tracked'] = observed_params['product_indices'].index('B0067PLM5E')
-    params['product_indices'] = list(range(params['number_of_products']))
+    params['product_indices'] = [0]
 
     params['population_alpha'] = observed_params['alpha']
 
-    params['prices'] = observed_params['prices']
+    params['price'] = observed_params['prices'][params['product_tracked']]
 
     params['product_features'] = dict.fromkeys(['RAM', 'BatteryLife', 'screen_size'])
 
     for i in params['product_features'].keys():
-        params['product_features'][i] = observed_params[i]
+        params['product_features'][i] = observed_params[i][params['product_tracked']]
 
     params['population_beta'] = dict.fromkeys([s + '_beta' for s in params['product_features'].keys()])
-
     for i in params['population_beta'].keys():
         params['population_beta'][i] = observed_params[i]
 
-    params['true_qualities'] = observed_params['true_qualities']
+    params['true_quality'] = observed_params['true_qualities'][params['product_tracked']]
     params['total_number_of_reviews'] = 40
     # params['input_type'] =  'kurtosis'
     # params['input_type'] = 'averages'
@@ -68,13 +66,13 @@ else:
     number_of_features = 1# each point in the input time series is an average review
     assert number_of_features == 1, 'wrong number of features'
 
-n_hidden = 32  # number of units in each layer of the recurrent unit
+n_hidden = 8  # number of units in each layer of the recurrent unit
 
-NUM_LAYERS = 5  # number of layers in each recurrent unit
+NUM_LAYERS = 3  # number of layers in each recurrent unit
 
 OUTPUT_SIZE = 2  # output of the fully connected linear module at the end before the softmax
 
-BATCH_SIZE = 42
+BATCH_SIZE = 4
 
 # optimize parameters:
 

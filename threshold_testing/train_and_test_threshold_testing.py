@@ -16,17 +16,29 @@ if __name__ == '__main__':
     model.empty_losses()
 
     print('pretraining performance on the traning set')
-    training_sample = dynamics.genTorchDataset(1)
 
-    print(training_sample)
-    print(100 * model.evaluateAveragePerformance(training_sample))
+    training_sample1 = dynamics.genTorchDataset(LOAD=True, filename='toy_dataset.pkl')
+    training_sample2 = dynamics.genTorchDataset(LOAD=True, filename='toy_dataset2_4000.pkl')
+    training_sample3 = dynamics.genTorchDataset(LOAD=True, filename='toy_dataset3_10000.pkl')
+    training_sample4 = dynamics.genTorchDataset(LOAD=True, filename='toy_dataset4_14000.pkl')
+    training_sample5 = dynamics.genTorchDataset(LOAD=True, filename='toy_dataset5_20000.pkl')
+
+    # training_sample5 = dynamics.genTorchDataset(20000,SAVE=True,filename='dataset5_20000.pkl')
+    training_sample = training_sample1 + training_sample2 + training_sample3 + training_sample4 + training_sample5
+
+    training_sample6x = training_sample + training_sample + training_sample + training_sample  + training_sample  + training_sample \
+                        + training_sample + training_sample + training_sample + training_sample + training_sample + training_sample \
+                        + training_sample + training_sample
+
+    # print(training_sample)
+    # print(100 * model.evaluateAveragePerformance(training_sample1))
 
     print('doTraining on the traning set')
 
-    model.doTraining(training_sample, batch_size = 1, window_length_loss=2, verbose = True ,
+    model.doTraining(training_sample6x, batch_size = settings.BATCH_SIZE, window_length_loss=256, verbose = True ,
                      save = True , file_name = 'model_tuned.pkl')
     print('perforamce on Trainging set AFTER')
-    print(100 * model.evaluateAveragePerformance(training_sample))
+    print(100 * model.evaluateAveragePerformance(training_sample1))
     model.plot_losses()
     model.save_losses()
     print(model.training_losses)
@@ -36,3 +48,4 @@ if __name__ == '__main__':
 
     test_sample = dynamics.genTorchDataset(1)
     print(100 * model.evaluateAveragePerformance(test_sample))
+
