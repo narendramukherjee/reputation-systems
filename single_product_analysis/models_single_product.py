@@ -89,7 +89,7 @@ class consumer(product):
 
         if expected_utility > self.params['value_of_outside_option']:
             product_is_purchased = True
-
+        # print(expected_utility)
         return product_is_purchased
 
     def evaluate_product(self):
@@ -249,6 +249,7 @@ class market(consumer):
         else:
             simulation_results = []
             for iter in range(dataset_size):
+                print(iter)
                 label_of_data, data = self.genTorchSample()
                 simulation_results.append((label_of_data, data))
             if SAVE:

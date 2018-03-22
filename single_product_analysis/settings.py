@@ -6,15 +6,22 @@
 
 import pickle
 
-observed_params = pickle.load(open('./data/'+'params_updated.pkl', 'rb'))
+
+# tracked_product_ID = 'B0067PLM5E' # Asus
+tracked_product_ID = 'B002C7481G'  # Apple
+# tracked_product_ID = 'B0055D66V4'  # HP
+# tracked_product_ID = 'B004PGMFG2'  # Le Pan
+# tracked_product_ID = 'B005B9G79I'  # Vizio
+
+
+observed_params = pickle.load(open('./data/'+'ratio_params_'+tracked_product_ID+'.pkl', 'rb'))
 
 print(observed_params)
 
-tracked_product_ID = 'B0067PLM5E'
 
 def process_observed_params(observed_params, tracked_product_ID):
     params = dict()
-    params['product_tracked'] = observed_params['product_indices'].index('B0067PLM5E')
+    params['product_tracked'] = observed_params['product_indices'].index(tracked_product_ID)
     params['product_indices'] = [0]
 
     params['population_alpha'] = observed_params['alpha']
@@ -58,6 +65,7 @@ params = process_observed_params(observed_params, tracked_product_ID)
 
 # The inference engine settings
 
+
 if params['input_type'] == 'histograms':
     number_of_features = 5# each point in the input time series is a oistogram comprised of
 # five number for each of the five review levels (1,2,3,4,5)
@@ -66,6 +74,10 @@ else:
     number_of_features = 1# each point in the input time series is an average review
     assert number_of_features == 1, 'wrong number of features'
 
+SIZE_TRAINING_SET = 100
+
+SIZE_TEST_SET = 50
+
 n_hidden = 8  # number of units in each layer of the recurrent unit
 
 NUM_LAYERS = 3  # number of layers in each recurrent unit
@@ -73,6 +85,8 @@ NUM_LAYERS = 3  # number of layers in each recurrent unit
 OUTPUT_SIZE = 2  # output of the fully connected linear module at the end before the softmax
 
 BATCH_SIZE = 4
+
+WINDOW_LENGTH = 4
 
 # optimize parameters:
 

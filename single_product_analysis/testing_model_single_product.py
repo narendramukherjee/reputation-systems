@@ -7,6 +7,7 @@ import settings
 if __name__ == '__main__':
 
     dynamics = market(settings.params)
+    print(settings.params)
 
 
     print('A Torch Sample')

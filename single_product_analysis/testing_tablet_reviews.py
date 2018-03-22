@@ -32,10 +32,11 @@ if __name__ == '__main__':
 
     model = RNN()
 
-    model = model.load_from_file('model_tuned_B0067PLM5E.pkl')
+    model = model.load_from_file('model_tuned_' + settings.tracked_product_ID + '.pkl')
 
     current_working_directory = os.getcwd()
-    observed_timeseries = pd.read_csv(current_working_directory + '/data/'+'asus_time_series.txt', sep='\t')
+    observed_timeseries = pd.read_csv(current_working_directory + '/data/' + settings.tracked_product_ID +
+                                      '_time_series.txt', sep='\t')
     processed_timeseries = process_observed_timeseries(observed_timeseries, settings.params['input_type'])
 
     # observed_timeseries = pickle.load(open('./data/'+ 'asus_data.pkl', 'rb'))#model.load_from_file('asus_data.pkl')
