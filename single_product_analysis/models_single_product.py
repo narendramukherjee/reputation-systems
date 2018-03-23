@@ -272,6 +272,7 @@ class market(consumer):
 
         return a_product_is_reviewed
 
+
     def generateTimeseries(self, get_percieved_qualities_and_avg_reviews = False):  # conditioned on the fixed_params
         self.set_random_params()  # The random parameter that is the subject of inference is set here.
         # This parameter determines the true label for the generated time series (example).
