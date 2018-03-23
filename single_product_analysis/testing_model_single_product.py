@@ -3,6 +3,8 @@
 from models_single_product import *
 import settings
 
+import matplotlib.pyplot as plt
+
 
 if __name__ == '__main__':
 
@@ -11,10 +13,22 @@ if __name__ == '__main__':
 
 
     print('A Torch Sample')
-    label_of_data, data = dynamics.genTorchSample()
-    print(label_of_data)
+    data, avg_reviews, percieved_qualities = dynamics.generateTimeseries(get_percieved_qualities_and_avg_reviews = True)
     print(data)
+    print(avg_reviews)
+    print(percieved_qualities)
     print(dynamics.params)
+
+    plt.plot(avg_reviews)
+    plt.title('avg_reviews')
+    plt.show()
+
+    plt.plot(percieved_qualities)
+    plt.title('percieved_qualities')
+    plt.show()
+
+
+
 
     # print('A Torch Dataset with two samples')
     # dataset = dynamics.genTorchDataset(2)

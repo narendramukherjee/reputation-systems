@@ -50,6 +50,9 @@ class product():
         if 'value_of_outside_option' not in self.fixed_params:
             self.params['value_of_outside_option'] = 0.0  # Whenever the expected utility exceeds the value of the
             # outside option, the product is purchased.
+        if 'testing_what' not in self.fixed_params:
+            self.params['testing_what'] = 'BM vs Motivation'  # We can either test for BM vs Motivation or test for
+            # threshold_positive_zero
 
 
 class consumer(product):
@@ -66,6 +69,10 @@ class consumer(product):
             self.params['consumer_fit_std'] = 4.5
         if 'consumer_fit_distribution' not in self.fixed_params:
             self.params['consumer_fit_distribution'] = st.norm(0, self.params['consumer_fit_std'])
+
+        # if 'consumer_comparison_mode' not in self.fixed_params:
+        #     self.params['consumer_comparison_mode'] should not be set here, it should be set in set_random_params
+        # because it is the subject of inference.
 
     def init_consumer_private_parameters(self):
         self.consumer_private_fit = self.params['consumer_fit_distribution'].rvs()
@@ -85,7 +92,7 @@ class consumer(product):
 
         price_utility = self.consumer_private_alpha * np.array(self.params['price'])
 
-        expected_utility = features_utility + price_utility + self.percieved_quality + self.consumer_private_fit
+        expected_utility = features_utility + price_utility + self.percieved_qualities[-1] + self.consumer_private_fit
 
         if expected_utility > self.params['value_of_outside_option']:
             product_is_purchased = True
@@ -94,10 +101,39 @@ class consumer(product):
 
     def evaluate_product(self):
 
-        review_levels = [self.percieved_quality - 1.5, self.percieved_quality - 0.5,
-                         self.percieved_quality + 0.5,
-                         self.percieved_quality + 1.5]
+        if self.params['consumer_comparison_mode'] == 'BM':
+            review_levels = [self.percieved_qualities[-1] - 1.5, self.percieved_qualities[-1] - 0.5,
+                             self.percieved_qualities[-1] + 0.5,
+                             self.percieved_qualities[-1] + 1.5]
 
+            experienced_quality = self.params['true_quality'] + self.consumer_private_fit
+
+            product_review = int(1 + sum(1.0 * (experienced_quality >= np.array(review_levels))))
+            # print(self.params['consumer_comparison_mode'])
+
+        elif self.params['consumer_comparison_mode'] == 'motivation':
+
+            if self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
+                review_levels = [self.avg_reviews[-1] - 1.5, self.avg_reviews[-1] - 0.5,
+                                 self.avg_reviews[-1] + 0.5, self.avg_reviews[-1] + 1.5]
+            else:
+                review_levels = [self.params['neutral_quality'] - 1.5, self.params['neutral_quality'] - 0.5,
+                                 self.params['neutral_quality'] + 0.5, self.params['neutral_quality'] + 1.5]
+
+            experienced_quality = self.params['true_quality'] + self.consumer_private_fit
+
+            product_review = int(1 + sum(1.0 * (experienced_quality >= np.array(review_levels))))
+
+            # print(self.params['consumer_comparison_mode'])
+
+        else:
+            raise Exception("consumer_comparison_mode not set!")
+
+        return product_review
+
+        review_levels = [self.percieved_qualities[-1] - 1.5, self.percieved_qualities[-1] - 0.5,
+                         self.percieved_qualities[-1] + 0.5,
+                         self.percieved_qualities[-1] + 1.5]
 
         experienced_quality = self.params['true_quality'] + self.consumer_private_fit
 
@@ -105,15 +141,29 @@ class consumer(product):
 
         return product_review
 
-    def decide_to_rate(self,product_review):
+    def decide_to_rate(self, product_review):
 
-        if np.random.binomial(1, self.params['tendency_to_rate']):
-            decision = True
-        elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
-            decision = (abs(product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold']) \
-                       and (np.random.binomial(1, min(3*self.params['tendency_to_rate'],1)))
-        else:
-            decision = False
+        if self.params['consumer_comparison_mode'] == 'BM':
+            if np.random.binomial(1, self.params['tendency_to_rate']):
+                decision = True
+            elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
+                decision = (abs(product_review - self.percieved_qualities[-1]) > self.params['rate_decision_threshold']) \
+                           and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1)))
+            else:
+                decision = True
+
+            # print(self.params['consumer_comparison_mode'],decision)
+
+        if self.params['consumer_comparison_mode'] == 'motivation':
+            if np.random.binomial(1, self.params['tendency_to_rate']):
+                decision = True
+            elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
+                decision = (abs(product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold']) \
+                           and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1)))
+            else:
+                decision = True
+
+            # print(self.params['consumer_comparison_mode'],decision)
 
         return decision
 
@@ -135,15 +185,26 @@ class market(consumer):
     def set_random_params(self):
         """Randomly sets the parameters that are the subject of inference by the inference engine. The parameters are
         randomized according to the prior distributions"""
-        if 'rate_decision_threshold' not in self.fixed_params:
-            self.params['rate_decision_threshold'] = RD.choice([-1.0,1.0])
+
+        if self.params['testing_what'] == 'BM vs Motivation':
+            self.params['consumer_comparison_mode'] = RD.choice(['BM', 'motivation'])
+            if 'rate_decision_threshold' not in self.fixed_params:
+                self.params['rate_decision_threshold'] = 1
+
+        elif self.params['testing_what'] == 'threshold_positive_zero':
+            self.params['rate_decision_threshold'] = RD.choice([-1.0, 1.0])
+            if 'consumer_comparison_mode' not in self.fixed_params:
+                self.params['consumer_comparison_mode'] = 'BM'
+        else:
+            raise Exception("testing_what is undefined!")
 
     def init_reputation_dynamics(self):
 
-        self.percieved_quality = self.params['neutral_quality']
+        self.percieved_qualities = []
         self.reviews = []
-        self.avg_reviews = [3]
+        self.avg_reviews = []
         self.histogram_reviews = [0] * self.params['number_of_rating_levels']
+        self.percieved_qualities = []
 
         self.customer_count = 0
         self.purchase_decisions = []
@@ -151,7 +212,10 @@ class market(consumer):
 
     def form_perception_of_quality(self):
 
-        quality_anchor = self.avg_reviews[-1]
+        if self.avg_reviews:
+            quality_anchor = self.avg_reviews[-1]
+        else:
+            quality_anchor = self.params['neutral_quality']
 
         observed_histograms = self.histogram_reviews
 
@@ -186,12 +250,10 @@ class market(consumer):
 
         model = mc.MCMC([infer_quality, histogram_mental_model])
         model.sample(iter=100, progress_bar=False)
-        self.percieved_quality = np.mean(model.trace('infer_quality')[:])
+        self.percieved_qualities += [np.mean(model.trace('infer_quality')[:])]
 
     def step(self):
-
         self.init_consumer_private_parameters()
-
         self.form_perception_of_quality()
         product_is_purchased = self.make_purchase()
         self.purchase_count += product_is_purchased*1.0
@@ -210,10 +272,11 @@ class market(consumer):
 
         return a_product_is_reviewed
 
-    def generateTimeseries(self):  # conditioned on the fixed_params
-        self.set_random_params() # The random parameter that is the subject of inference is set here.
-                                 # This parameter determines the true label for the generated time series (example).
-                                 # The distribution according to which the parameter is randommized is our prior on it
+    def generateTimeseries(self, get_percieved_qualities_and_avg_reviews = False):  # conditioned on the fixed_params
+        self.set_random_params()  # The random parameter that is the subject of inference is set here.
+        # This parameter determines the true label for the generated time series (example).
+        # The distribution according to which the parameter is randommized is our prior on it
+
         self.init_reputation_dynamics()
         timeseries = []
 
@@ -235,12 +298,23 @@ class market(consumer):
                     kurtosis = st.kurtosis(histogram, fisher=False, bias=True)
                     timeseries.append(kurtosis)
         df = pd.DataFrame(timeseries)
-        return df
+        
+        if get_percieved_qualities_and_avg_reviews:
+            return df, self.avg_reviews, self.percieved_qualities
+        else: 
+            return df
 
     def genTorchSample(self):
         df = self.generateTimeseries()
         data = torch.FloatTensor(df.values[:, 0:5].astype(float))
-        label_of_data = torch.LongTensor([int(self.params['rate_decision_threshold']>0)])
+        if self.params['testing_what'] == 'BM vs Motivation':
+            label_of_data = torch.LongTensor([int(self.params['consumer_comparison_mode'] == 'BM')])  # BM is labeled 1
+            # and motivation is labeled 0.
+        elif self.params['testing_what'] == 'threshold_positive_zero':
+            label_of_data = torch.LongTensor([int(self.params['rate_decision_threshold'] > 0)])  # threshold 0 is
+            # labeled 0  and threshold > 0 is labeled 1.
+
+        # print(self.params['testing_what'],self.params['consumer_comparison_mode'],self.params['rate_decision_threshold'],label_of_data)
         return label_of_data, data
 
     def genTorchDataset(self, dataset_size=1000,filename = 'dataset.pkl', LOAD=False, SAVE = False ):
