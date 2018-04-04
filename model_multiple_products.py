@@ -158,7 +158,7 @@ class market(consumer):
     def form_perception_of_quality(self):
 
 
-        print('we are at the begining of perception', self.params['neutral_population_qualities'])
+        # print('we are at the begining of perception', self.params['neutral_population_qualities'])
 
         quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
 
@@ -193,9 +193,8 @@ class market(consumer):
             model.sample(iter=100, progress_bar=False)
             self.percieved_qualities[product] = np.mean(model.trace('infer_quality')[:])
 
-        print('we are at the end of perception', self.params['neutral_population_qualities'])
-        print('we are at the end of perception', self.percieved_qualities)
-
+        # print('we are at the end of perception', self.params['neutral_population_qualities'])
+        # print('we are at the end of perception', self.percieved_qualities)
 
     def step(self):
 
