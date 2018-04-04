@@ -35,6 +35,7 @@ class product():
             self.params['product_features']['feature'] = [1,2,3,4]
         if 'neutral_qualities' not in self.fixed_params:
             self.params['neutral_population_qualities'] = [3]*self.params['number_of_products']
+            print(self.params['neutral_population_qualities'])
         if 'qualities_std' not in self.fixed_params:
             self.params['qualities_std'] = 1.5
         if 'true_qualities' not in self.fixed_params:
@@ -135,7 +136,7 @@ class market(consumer):
         if 'population_alpha' not in self.fixed_params:
             self.params['population_alpha'] = [np.random.uniform(-3, -2), 1]
         if 'total_number_of_reviews' not in self.fixed_params:
-            self.params['total_number_of_reviews'] = 50
+            self.params['total_number_of_reviews'] = 20
 
     def set_random_params(self):
         """Randomly sets the parameters that are the subject of inference by the inference engine. The parameters are
@@ -155,6 +156,9 @@ class market(consumer):
         self.purchase_count = [0] * self.params['number_of_products']
 
     def form_perception_of_quality(self):
+
+
+        print('we are at the begining of perception', self.params['neutral_population_qualities'])
 
         quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
 
@@ -189,9 +193,17 @@ class market(consumer):
             model.sample(iter=100, progress_bar=False)
             self.percieved_qualities[product] = np.mean(model.trace('infer_quality')[:])
 
+        print('we are at the end of perception', self.params['neutral_population_qualities'])
+        print('we are at the end of perception', self.percieved_qualities)
+
+
     def step(self):
 
         self.init_consumer_private_parameters()
+
+        # fix the common prior on quality at the beginning of perception:
+        if 'neutral_qualities' not in self.fixed_params:
+            self.params['neutral_population_qualities'] = [3.0] * self.params['number_of_products']
 
         self.form_perception_of_quality()
         product_index = self.make_purchase()
