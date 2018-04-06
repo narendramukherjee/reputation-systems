@@ -254,6 +254,11 @@ class market(consumer):
 
     def step(self):
         self.init_consumer_private_parameters()
+        # fixing the common prior on quality at the beginning of perception:
+        if 'neutral_quality' not in self.fixed_params:
+            self.params['neutral_quality'] = 3.0
+        else:
+            self.params['neutral_quality'] = self.fixed_params['neutral_quality']
         self.form_perception_of_quality()
         product_is_purchased = self.make_purchase()
         self.purchase_count += product_is_purchased*1.0
