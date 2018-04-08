@@ -35,7 +35,7 @@ class product():
             self.params['product_features']['feature'] = [1,2,3,4]
         if 'neutral_qualities' not in self.fixed_params:
             self.params['neutral_population_qualities'] = [3]*self.params['number_of_products']
-            print(self.params['neutral_population_qualities'])
+            # print(self.params['neutral_population_qualities'])
         if 'qualities_std' not in self.fixed_params:
             self.params['qualities_std'] = 1.5
         if 'true_qualities' not in self.fixed_params:
@@ -95,7 +95,12 @@ class consumer(product):
                                   + np.array(self.percieved_qualities) + np.array(list(self.consumer_private_fit.values())))
         product_index = np.argmax(expected_utilities)
 
-        return product_index
+        realized_utilities = list(features_utility + price_utility + np.array(self.params['true_qualities']) +
+                                  np.array(list(self.consumer_private_fit.values())))
+
+        best_product = np.argmax(realized_utilities)
+
+        return product_index,best_product,realized_utilities,expected_utilities
 
     def evaluate_product(self,product_index):
 
@@ -136,7 +141,7 @@ class market(consumer):
         if 'population_alpha' not in self.fixed_params:
             self.params['population_alpha'] = [np.random.uniform(-3, -2), 1]
         if 'total_number_of_reviews' not in self.fixed_params:
-            self.params['total_number_of_reviews'] = 20
+            self.params['total_number_of_reviews'] = 100
 
     def set_random_params(self):
         """Randomly sets the parameters that are the subject of inference by the inference engine. The parameters are
@@ -150,7 +155,9 @@ class market(consumer):
         self.reviews = {key: [] for key in self.params['product_indices']}
         self.avg_reviews = {key: [3] for key in self.params['product_indices']}
         self.histogram_reviews = {key: [0] * self.params['number_of_rating_levels'] for key in self.params['product_indices']}
-
+        self.best_realized_utility = []
+        self.regret = []  # the difference between the best realization of utilities and the experienced utility
+        self.disappointment = []  # the difference between the expected utility and the experienced utility
         self.customer_count = 0
         self.purchased_products = []
         self.purchase_count = [0] * self.params['number_of_products']
@@ -205,7 +212,13 @@ class market(consumer):
             self.params['neutral_population_qualities'] = [3.0] * self.params['number_of_products']
 
         self.form_perception_of_quality()
-        product_index = self.make_purchase()
+        product_index,best_product,realized_utilities,expected_utilities = self.make_purchase()
+
+        # print(product_index,best_product,realized_utilities,expected_utilities)
+        self.best_realized_utility += [realized_utilities[best_product]]
+        self.regret += [realized_utilities[best_product] - realized_utilities[product_index]]  # the difference between the best realization of utilities and the experienced utility
+        self.disappointment += [expected_utilities[product_index] - realized_utilities[product_index]]  # the difference between the expected utility and the experienced utility
+
         self.purchase_count[product_index] += 1
         self.purchased_products.append(product_index)
         product_review = self.evaluate_product(product_index)
