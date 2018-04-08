@@ -161,6 +161,7 @@ class market(consumer):
         self.customer_count = 0
         self.purchased_products = []
         self.purchase_count = [0] * self.params['number_of_products']
+        self.best_choice_made = []
 
     def form_perception_of_quality(self):
 
@@ -218,7 +219,7 @@ class market(consumer):
         self.best_realized_utility += [realized_utilities[best_product]]
         self.regret += [realized_utilities[best_product] - realized_utilities[product_index]]  # the difference between the best realization of utilities and the experienced utility
         self.disappointment += [expected_utilities[product_index] - realized_utilities[product_index]]  # the difference between the expected utility and the experienced utility
-
+        self.best_choice_made += [1.0*(product_index == best_product)]
         self.purchase_count[product_index] += 1
         self.purchased_products.append(product_index)
         product_review = self.evaluate_product(product_index)
