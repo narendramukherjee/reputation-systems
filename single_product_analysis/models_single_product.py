@@ -57,8 +57,8 @@ class product():
 
 class consumer(product):
     def __init__(self):
-        self.set_missing_consumer_params()
         super(consumer, self).__init__()
+        self.set_missing_consumer_params()
 
     def set_missing_consumer_params(self):
         if 'tendency_to_rate' not in self.fixed_params:
