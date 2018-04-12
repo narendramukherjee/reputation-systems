@@ -176,9 +176,10 @@ class market(consumer):
 
     def set_missing_market_params(self):
         if 'population_beta' not in self.fixed_params:
-            self.params['population_beta'] = np.random.uniform(1,2)
+            self.params['population_beta'] = dict.fromkeys(['feature_beta'])
+            self.params['population_beta']['feature_beta'] = [np.random.uniform(1, 2), 1]
         if 'population_alpha' not in self.fixed_params:
-            self.params['population_alpha'] = np.random.uniform(-3,-2)
+            self.params['population_alpha']  = [np.random.uniform(-3, -2), 1]
         if 'total_number_of_reviews' not in self.fixed_params:
             self.params['total_number_of_reviews'] = 100
 
