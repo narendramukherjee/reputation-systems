@@ -1,0 +1,3 @@
+# single product analysis 
+Dynamic Structural Modeling and Approximate Bayesian Inference of Online Reputation Systems
+ In single product analysis we generate the traning samples conditioned on people having experienced a quality that is higher or lower than the average rating. In each case we use ABC to get the conditional posteriors of the threshold delta, from a wide gaussian prior with mean one. Comparing the posteriors will tell us how people's thresholds differ for when putting a rating that is below or above the average rating. 

@@ -2,6 +2,7 @@
 .idea/
 
 single_product_analysis/data/
+single_product_analysis_directionality/data/
 
 #slurm files
 *.out
