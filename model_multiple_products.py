@@ -174,7 +174,7 @@ class market(consumer):
 
         for product in self.params['product_indices']:
             infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_population_qualities'][product],
-                                      tau=self.params['qualities_std'])  # this the prior on the quality
+                                      tau=1/(self.params['quality_std']**2))  # this the prior on the quality
 
             data = observed_histograms[product]
 

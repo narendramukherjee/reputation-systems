@@ -230,7 +230,7 @@ class market(consumer):
         observed_histograms = self.histogram_reviews
 
         infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_quality'],
-                                  tau=self.params['quality_std'])  # this is the prior on the quality
+                                  tau=1/(self.params['quality_std']**2))  # this is the prior on the quality
 
         data = observed_histograms
 

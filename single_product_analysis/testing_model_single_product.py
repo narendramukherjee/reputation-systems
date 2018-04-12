@@ -12,7 +12,7 @@ if __name__ == '__main__':
 
     print(settings.params)
 
-    dynamics.params['value_of_outside_option'] = 100
+    dynamics.params['value_of_outside_option'] = 5
 
     print(dynamics.params)
 
@@ -30,8 +30,6 @@ if __name__ == '__main__':
     plt.plot(percieved_qualities)
     plt.title('percieved_qualities')
     plt.show()
-
-
 
 
     # print('A Torch Dataset with two samples')
