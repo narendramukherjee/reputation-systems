@@ -29,7 +29,8 @@ class product():
         if 'price' not in self.fixed_params:
             self.params['price'] = 10
         if 'product_features' not in self.fixed_params:
-            self.params['product_features'] = [1,2,3,4]
+            self.params['product_features'] = dict.fromkeys(['feature'])
+            self.params['product_features']['feature'] = [1, 2, 3, 4]
         if 'neutral_quality' not in self.fixed_params:
             self.params['neutral_quality'] = 3
         if 'quality_std' not in self.fixed_params:
