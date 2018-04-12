@@ -97,7 +97,9 @@ class consumer(product):
 
         if expected_utility > self.params['value_of_outside_option']:
             product_is_purchased = True
-        # print(expected_utility)
+        print(expected_utility)
+        print(self.params['value_of_outside_option'])
+        print(product_is_purchased)
         return product_is_purchased
 
     def evaluate_product(self):
@@ -267,7 +269,7 @@ class market(consumer):
         self.purchase_decisions.append(product_is_purchased)
         product_review = self.evaluate_product()
 
-        if self.decide_to_rate(product_review):
+        if product_is_purchased and self.decide_to_rate(product_review):
             self.reviews.append(product_review)
             self.avg_reviews.append(np.mean(self.reviews))
             self.histogram_reviews[product_review - 1] += 1

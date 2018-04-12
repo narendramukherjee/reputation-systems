@@ -9,8 +9,12 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
 
     dynamics = market(settings.params)
+
     print(settings.params)
 
+    dynamics.params['value_of_outside_option'] = 100
+
+    print(dynamics.params)
 
     print('A Torch Sample')
     data, avg_reviews, percieved_qualities = dynamics.generateTimeseries(get_percieved_qualities_and_avg_reviews = True)
