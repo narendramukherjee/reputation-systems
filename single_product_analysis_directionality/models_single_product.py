@@ -61,7 +61,6 @@ class consumer(product):
         super(consumer, self).__init__()
         self.set_missing_consumer_params()
 
-
     def set_missing_consumer_params(self):
         if 'tendency_to_rate' not in self.fixed_params:
             self.params['tendency_to_rate'] = 0.2
@@ -150,8 +149,9 @@ class consumer(product):
             if np.random.binomial(1, self.params['tendency_to_rate']):
                 decision = True
             elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
-                decision = (abs(product_review - self.percieved_qualities[-1]) > self.params['rate_decision_threshold']) \
-                           and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1)))
+                decision = ((((product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold_above']) or
+                             ((product_review - self.avg_reviews[-1]) < self.params['rate_decision_threshold_below']))
+                            and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
             else:
                 decision = True
 
@@ -161,8 +161,9 @@ class consumer(product):
             if np.random.binomial(1, self.params['tendency_to_rate']):
                 decision = True
             elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
-                decision = (abs(product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold']) \
-                           and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1)))
+                decision = ((((product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold_above']) or
+                             ((product_review - self.avg_reviews[-1]) < self.params['rate_decision_threshold_below']))
+                            and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
             else:
                 decision = True
 
@@ -187,22 +188,25 @@ class market(consumer):
         if 'total_number_of_reviews' not in self.fixed_params:
             self.params['total_number_of_reviews'] = 100
 
-    def set_random_params(self, theta=None):
+    def set_random_params(self, theta_above=None, theta_below=None):
         """Randomly sets the parameters that are the subject of inference by the inference engine.
         The parameters are randomized according to the prior distributions"""
-
+        if theta_below is None:
+            theta_below = theta_above
         if self.params['testing_what'] == 'BM vs Motivation':
             self.params['consumer_comparison_mode'] = RD.choice(['BM', 'motivation'])
-            if 'rate_decision_threshold' not in self.fixed_params:
-                self.params['rate_decision_threshold'] = 1
-
+            if 'rate_decision_threshold_above' not in self.fixed_params:
+                self.params['rate_decision_threshold_above'] = 1
+                self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
         elif self.params['testing_what'] == 'threshold_positive_zero':
-            self.params['rate_decision_threshold'] = RD.choice([-1.0, 1.0])
+            self.params['rate_decision_threshold_above'] = RD.choice([-1.0, 1.0])
+            self.params['rate_decision_threshold_above'] = self.params['rate_decision_threshold_below']
             if 'consumer_comparison_mode' not in self.fixed_params:
                 self.params['consumer_comparison_mode'] = 'BM'
         elif self.params['testing_what'] == 'threshold_directionality':
-            assert theta is not None, "theta not supplied for threshold_directionality"
-            self.params['rate_decision_threshold'] = theta
+            assert theta_above is not None, "theta not supplied for threshold_directionality"
+            self.params['rate_decision_threshold_above'] = theta_above
+            self.params['rate_decision_threshold_below'] = theta_below
             if 'consumer_comparison_mode' not in self.fixed_params:
                 self.params['consumer_comparison_mode'] = 'BM'
         else:

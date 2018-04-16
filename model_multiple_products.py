@@ -118,11 +118,13 @@ class consumer(product):
         if np.random.binomial(1, self.params['tendency_to_rate']):
             decision = True
         elif self.avg_reviews[product_index]:  # it is not the first review
-            decision = (abs(product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold']) \
-                       and (np.random.binomial(1, min(3*self.params['tendency_to_rate'],1)))
+            decision = ((((product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold_above']) or
+                         ((product_review - self.avg_reviews[product_index][-1]) < self.params['rate_decision_threshold_below']))
+                        and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
+            # decision = (abs(product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold']) \
+            #            and (np.random.binomial(1, min(3*self.params['tendency_to_rate'],1)))
         else:
             decision = False
-
         return decision
 
 
@@ -146,8 +148,12 @@ class market(consumer):
     def set_random_params(self):
         """Randomly sets the parameters that are the subject of inference by the inference engine. The parameters are
         randomized according to the prior distributions"""
-        if 'rate_decision_threshold' not in self.fixed_params:
-            self.params['rate_decision_threshold'] = RD.choice([-1.0,1.0])
+        if 'rate_decision_threshold_above' not in self.fixed_params:
+            self.params['rate_decision_threshold_above'] = RD.choice([-1.0,1.0])
+            self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
+
+        # if 'rate_decision_threshold' not in self.fixed_params:
+        #     self.params['rate_decision_threshold'] = RD.choice([-1.0,1.0])
 
     def init_reputation_dynamics(self):
 
@@ -165,7 +171,6 @@ class market(consumer):
 
     def form_perception_of_quality(self):
 
-
         # print('we are at the begining of perception', self.params['neutral_population_qualities'])
 
         quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
@@ -174,7 +179,7 @@ class market(consumer):
 
         for product in self.params['product_indices']:
             infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_population_qualities'][product],
-                                      tau=1/(self.params['quality_std']**2))  # this the prior on the quality
+                                      tau=1/(self.params['qualities_std']**2))  # this the prior on the quality
 
             data = observed_histograms[product]
 
