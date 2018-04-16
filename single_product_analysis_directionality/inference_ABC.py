@@ -139,7 +139,9 @@ class ABC_GenerativeModel(market):
         if processed_output == 'histogram':
             current_histogram = [0] * self.params['number_of_rating_levels']
             # histogram_timeseries = [[0] * self.params['number_of_rating_levels']]
+            # print()
             for rating in all_ratings:
+                # print(rating)
                 current_histogram[rating - 1] += 1
                 # append_histogram = copy.deepcopy(current_histogram)
                 # histogram_timeseries.append(append_histogram)
@@ -259,7 +261,7 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
             accepted_count += 1
             posterior.append(theta)
             distances.append(distance)
-            print('ACCEPTED!!',accepted_count)
+            print('ACCEPTED!!',accepted_count,theta)
 
         else:
             pass

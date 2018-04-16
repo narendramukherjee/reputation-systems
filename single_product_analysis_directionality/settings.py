@@ -38,7 +38,7 @@ def process_observed_params(observed_params, tracked_product_ID):
         params['population_beta'][i] = observed_params[i]
 
     params['true_quality'] = observed_params['true_qualities'][params['product_tracked']]
-    params['total_number_of_reviews'] = 40
+    params['total_number_of_reviews'] = 100
     # params['input_type'] =  'kurtosis'
     # params['input_type'] = 'averages'
     params['input_type'] = 'histograms'
@@ -50,7 +50,6 @@ def process_observed_params(observed_params, tracked_product_ID):
 
 
 params = process_observed_params(observed_params, tracked_product_ID)
-
 
 # params = {'product_tracked': 0,
 #           'prices': [10, 11, 12, 13],
@@ -65,31 +64,33 @@ params = process_observed_params(observed_params, tracked_product_ID)
 
 # The inference engine settings
 
-
 if params['input_type'] == 'histograms':
-    number_of_features = 5# each point in the input time series is a oistogram comprised of
+    number_of_features = 5  # each point in the input time series is a oistogram comprised of
 # five number for each of the five review levels (1,2,3,4,5)
     assert number_of_features == 5, 'wrong number of features'
 else:
-    number_of_features = 1# each point in the input time series is an average review
+    number_of_features = 1  # each point in the input time series is an average review
     assert number_of_features == 1, 'wrong number of features'
 
-SIZE_TRAINING_SET = 100
 
-SIZE_TEST_SET = 50
-
-n_hidden = 8  # number of units in each layer of the recurrent unit
-
-NUM_LAYERS = 3  # number of layers in each recurrent unit
-
-OUTPUT_SIZE = 2  # output of the fully connected linear module at the end before the softmax
-
-BATCH_SIZE = 4
-
-WINDOW_LENGTH = 4
-
+# These are neural network settings:
+#
+# SIZE_TRAINING_SET = 100
+#
+# SIZE_TEST_SET = 50
+#
+# n_hidden = 8  # number of units in each layer of the recurrent unit
+#
+# NUM_LAYERS = 3  # number of layers in each recurrent unit
+#
+# OUTPUT_SIZE = 2  # output of the fully connected linear module at the end before the softmax
+#
+# BATCH_SIZE = 4
+#
+# WINDOW_LENGTH = 4
+#
 # optimize parameters:
-
-LEARNING_RATE = 0.003
-
-WEIGHT_DECAY = 0.0001
+#
+# LEARNING_RATE = 0.003
+#
+# WEIGHT_DECAY = 0.0001
