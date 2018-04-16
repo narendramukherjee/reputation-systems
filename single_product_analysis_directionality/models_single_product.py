@@ -185,7 +185,7 @@ class market(consumer):
         if 'population_alpha' not in self.fixed_params:
             self.params['population_alpha'] = [np.random.uniform(-3, -2), 1]
         if 'total_number_of_reviews' not in self.fixed_params:
-            self.params['total_number_of_reviews'] = 20
+            self.params['total_number_of_reviews'] = 100
 
     def set_random_params(self, theta=None):
         """Randomly sets the parameters that are the subject of inference by the inference engine.
@@ -270,7 +270,7 @@ class market(consumer):
         self.purchase_decisions.append(product_is_purchased)
         product_review = self.evaluate_product()
 
-        if self.decide_to_rate(product_review):
+        if product_is_purchased and self.decide_to_rate(product_review):
             self.reviews.append(product_review)
             self.avg_reviews.append(np.mean(self.reviews))
             self.histogram_reviews[product_review - 1] += 1
@@ -282,7 +282,8 @@ class market(consumer):
 
         return a_product_is_reviewed
 
-    def generateTimeseries(self, theta, get_percieved_qualities_and_avg_reviews=False, do_not_return_df=False):
+    def generateTimeseries(self, theta, raw=False,
+                           get_percieved_qualities_and_avg_reviews=False, do_not_return_df=False):
 
         # conditioned on the fixed_params
         self.set_random_params(theta)  # The random parameter that is the subject of inference is set here.
@@ -296,7 +297,9 @@ class market(consumer):
             a_product_is_reviewed = self.step()
 
             if a_product_is_reviewed:
-                if self.params['input_type'] == 'averages':
+                if raw: # this is used for ABC
+                    timeseries.append(self.reviews[-1])
+                elif self.params['input_type'] == 'averages':
                     timeseries.append(self.avg_reviews[-1])
                 elif self.params['input_type'] == 'histograms':
                     histogram = copy.deepcopy(self.histogram_reviews)
@@ -305,7 +308,7 @@ class market(consumer):
                     timeseries.append(histogram)
                 elif self.params['input_type'] == 'kurtosis':
                     histogram = copy.deepcopy(self.histogram_reviews)
-                    if (sum(histogram) > 0):
+                    if sum(histogram) > 0:
                         histogram = list(np.array(histogram) / (1.0 * sum(histogram)))
                     kurtosis = st.kurtosis(histogram, fisher=False, bias=True)
                     timeseries.append(kurtosis)

@@ -8,17 +8,18 @@ RD.seed()
 if __name__ == '__main__':
 
     true_theta = 0.5
-    gen_model = ABC_GenerativeModel()
+    gen_model = ABC_GenerativeModel(params={}, conditioning=False, direction=None)
     obsreved_data = gen_model.generate_data(true_theta)
     print('obsreved_data',obsreved_data)
     (posterior, distances,
      accepted_count, trial_count,
-     epsilon) = basic_abc(gen_model, obsreved_data, epsilon=0.05, min_samples=10)
+     epsilon) = basic_abc(gen_model, obsreved_data, epsilon=0.03, min_samples=10)
     print('posterior',posterior)
     print('distances', distances)
     print('accepted_count', accepted_count)
     print('trial_count', trial_count)
     print('epsilon', epsilon)
+    print(np.mean(posterior))
 
 
 

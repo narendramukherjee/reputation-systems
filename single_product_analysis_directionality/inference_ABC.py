@@ -4,7 +4,7 @@ import random
 import settings
 import numpy as np
 from models_single_product import market
-
+import copy
 random.seed()
 
 SENTINEL = object()
@@ -20,15 +20,22 @@ class ABC_GenerativeModel(market):
     * Model.distance_function
     """
 
-    def __init__(self, params={}):
+    def __init__(self, params={},conditioning=False, direction=None):
+        """
+        params dict for the generative model.
+        if conditioning is True, then direction should be 'above' or 'below'
+        """
         super(ABC_GenerativeModel, self).__init__(params)
         self.fixed_params['input_type'] = 'histograms'
         self.fixed_params['input_histograms_are_normalized'] = True
         self.params['input_type'] = 'histograms'
         self.params['input_histograms_are_normalized'] = True
+        self.conditioning = conditioning
+        self.direction = direction
+
 
     def set_data(self, data):
-        self.data = data
+        self.data = data # this is the observed data
         self.data_summary_stats = self.summary_stats(self.data)
 
     def set_epsilon(self, epsilon):
@@ -38,18 +45,18 @@ class ABC_GenerativeModel(market):
         """
         self.epsilon = epsilon
 
-    def generate_data_and_reduce(self, theta):
-        """
-        A combined method for
-        (i) generating data,
-        (ii) calculating summary statistics
-        (iii) and evaluating the distance function
-        """
-        synthetic_data = self.generate_data(theta)
-        synthetic_summary_stats = self.summary_stats(synthetic_data)
-        distance = self.distance_function(synthetic_summary_stats, self.data_summary_stats)
-
-        return distance
+    # def generate_data_and_reduce(self, theta):
+    #     """
+    #     A combined method for
+    #     (i) generating data,
+    #     (ii) calculating summary statistics
+    #     (iii) and evaluating the distance function
+    #     """
+    #     synthetic_data = self.generate_data(theta)
+    #     synthetic_summary_stats = self.summary_stats(synthetic_data)
+    #     distance = self.distance_function(synthetic_summary_stats, self.data_summary_stats)
+    #
+    #     return distance
 
     def draw_theta(self):
         """
@@ -68,9 +75,10 @@ class ABC_GenerativeModel(market):
         taking vector theta as an argument.
         """
         # self.fixed_params['rate_decision_threshold'] = theta
-        data = self.generateTimeseries(theta, get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
+        data = self.generateTimeseries(theta,raw=True,get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
         print('synthetic', data)
         return data
+
 
     def summary_stats(self, data):
         """
@@ -79,7 +87,9 @@ class ABC_GenerativeModel(market):
         taking an array/matrix/table as an argument
         """
         # return np.asarray(data.iloc[-1])
-        return np.asarray(data[-1])
+        summary = np.asarray(self.process_raw_timeseries(data, processed_output='histogram'))
+        print('summary', summary)
+        return summary
 
     def distance_function(self, summary_stats, summary_stats_synth):
         """
@@ -92,19 +102,53 @@ class ABC_GenerativeModel(market):
         distance = 0.2*sum(abs(summary_stats-summary_stats_synth))
         return distance
 
-    def process_observed_timeseries(observed_timeseries, input_type='histograms', do_not_return_torchtensor_or_df=True):
-        """Returns time series of histograms"""
-        assert do_not_return_torchtensor_or_df, 'in ABC we do not work with data-frames or tensors'
-        if input_type == 'histograms':
-            all_ratings = list(observed_timeseries['Rating'])
-            current_histogram = [0] * settings.params['number_of_rating_levels']
-            histogram_timeseries = [[0] * settings.params['number_of_rating_levels']]
+    def process_raw_timeseries(self,raw_timeseries, processed_output='histogram'):
+        """Returns the histogram can be applied to the the output of generateTimeseries(raw=True)
+        should do all_ratings = list(raw_timeseries['Rating']) before applying process_raw_timeseries() on the data from
+        tablets.
+        """
+        if self.conditioning:
+            assert self.direction is not None, "The direction for conditioning is not provided."
+
+            raw_averages = []
+            for i in range(1,len(raw_timeseries)+1):
+                raw_averages.append(np.mean(raw_timeseries[:i]))
+
+
+            print('raw_averages' , raw_averages)
+
+            conditioned_timeseries = [raw_timeseries[0]]
+
+            for i in range(1, len(raw_timeseries)):
+                if self.direction is 'above' and raw_timeseries[i] < raw_averages[i-1]:
+                    # print('raw_timeseries[i]', raw_timeseries[i])
+                    # print('raw_averages[i-1]', raw_averages[i-1])
+                    continue
+                elif self.direction is 'below' and raw_timeseries[i] > raw_averages[i-1]:
+                    continue
+                else:
+                    conditioned_timeseries.append(raw_timeseries[i])
+
+            print('conditioned_timeseries', conditioned_timeseries)
+
+        if self.conditioning:
+            all_ratings = conditioned_timeseries
+        else:
+            all_ratings = raw_timeseries
+
+        if processed_output == 'histogram':
+            current_histogram = [0] * self.params['number_of_rating_levels']
+            # histogram_timeseries = [[0] * self.params['number_of_rating_levels']]
             for rating in all_ratings:
                 current_histogram[rating - 1] += 1
-                append_histogram = copy.deepcopy(current_histogram)
-                histogram_timeseries.append(append_histogram)
+                # append_histogram = copy.deepcopy(current_histogram)
+                # histogram_timeseries.append(append_histogram)
         # df = pd.DataFrame(histogram_timeseries)
-        return histogram_timeseries
+        output_histogram = copy.deepcopy(current_histogram)
+        if self.params['input_histograms_are_normalized'] and (sum(output_histogram) > 0):
+            output_histogram = list(np.array(output_histogram) / (1.0 * sum(output_histogram)))
+        print('output_histogram', output_histogram)
+        return output_histogram
 
 
 ################################################################################
@@ -215,6 +259,7 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
             accepted_count += 1
             posterior.append(theta)
             distances.append(distance)
+            print('ACCEPTED!!',accepted_count)
 
         else:
             pass
