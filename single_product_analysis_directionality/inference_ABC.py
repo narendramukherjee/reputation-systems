@@ -20,7 +20,7 @@ class ABC_GenerativeModel(market):
     * Model.distance_function
     """
 
-    def __init__(self, params={}, conditioning=False, direction=None):
+    def __init__(self, params={}, prior=np.linspace(0,2,100), conditioning=False, direction=None):
         """
         params dict for the generative model.
         if conditioning is True, then direction should be 'above' or 'below'
@@ -32,6 +32,7 @@ class ABC_GenerativeModel(market):
         self.params['input_histograms_are_normalized'] = True
         self.conditioning = conditioning
         self.direction = direction
+        self.prior = prior
 
 
     def set_data(self, data):
@@ -64,7 +65,7 @@ class ABC_GenerativeModel(market):
         This method should return an array-like iterable that is a vector of
         proposed model parameters from your prior distribution.
         """
-        theta = np.random.choice(np.linspace(0,2,10))
+        theta = np.random.choice(self.prior)
         return theta
 
     def generate_data(self, theta):
@@ -78,7 +79,6 @@ class ABC_GenerativeModel(market):
         data = self.generateTimeseries(theta, raw=True, get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
         print('synthetic', data)
         return data
-
 
     def summary_stats(self, data):
         """
