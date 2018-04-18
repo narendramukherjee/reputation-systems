@@ -327,6 +327,29 @@ class market(consumer):
         else:
             return df
 
+    def compute_direction_probability(self, prior_theta, dataset_size = 500):
+        ''' Returns the probability of putting a review above average. Probability of putting a review below threshld is
+        1 - probability of putting a review below average. The average is computed for dataset_size samples. Each sample
+        is generated with theta drawn independently uniformly at random from the vector prior_theta. '''
+        fractions_above = []
+        for i in range(dataset_size):
+            theta = np.random.choice(prior_theta)
+            raw_timeseries = self.generate_data(theta)
+            raw_averages = []
+            for ii in range(1, len(raw_timeseries) + 1):
+                raw_averages.append(np.mean(raw_timeseries[:ii]))
+
+            count_aboves = 0
+            for i in range(1, len(raw_timeseries)):
+                if raw_timeseries[i] > raw_averages[i - 1]:
+                    count_aboves += 1
+            print(count_aboves)
+            fractions_above += [count_aboves/(1.0*len(raw_timeseries))]
+            print(fractions_above)
+        fraction_above = np.mean(fractions_above)
+        print(fraction_above)
+        return fraction_above
+
     def genTorchSample(self):
         # implement these if neural network in inference not for ABC
         pass

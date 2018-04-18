@@ -20,7 +20,7 @@ class ABC_GenerativeModel(market):
     * Model.distance_function
     """
 
-    def __init__(self, params={},conditioning=False, direction=None):
+    def __init__(self, params={}, conditioning=False, direction=None):
         """
         params dict for the generative model.
         if conditioning is True, then direction should be 'above' or 'below'
@@ -75,7 +75,7 @@ class ABC_GenerativeModel(market):
         taking vector theta as an argument.
         """
         # self.fixed_params['rate_decision_threshold'] = theta
-        data = self.generateTimeseries(theta,raw=True,get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
+        data = self.generateTimeseries(theta, raw=True, get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
         print('synthetic', data)
         return data
 
