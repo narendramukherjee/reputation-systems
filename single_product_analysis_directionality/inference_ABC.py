@@ -1,5 +1,5 @@
 # ABC codes adopted from https://github.com/rcmorehead/simpleabc/blob/master/simple_abc.py
-
+import matplotlib.pyplot as plt
 import random
 import settings
 import numpy as np
@@ -65,7 +65,9 @@ class ABC_GenerativeModel(market):
         This method should return an array-like iterable that is a vector of
         proposed model parameters from your prior distribution.
         """
+        # print('prior is:', self.prior)
         theta = np.random.choice(self.prior)
+        print('drawn theta:', theta)
         return theta
 
     def generate_data(self, theta):
@@ -77,7 +79,7 @@ class ABC_GenerativeModel(market):
         """
         # self.fixed_params['rate_decision_threshold'] = theta
         data = self.generateTimeseries(theta, raw=True, get_percieved_qualities_and_avg_reviews=False, do_not_return_df=True)
-        print('synthetic', data)
+        # print('synthetic', data)
         return data
 
     def summary_stats(self, data):
@@ -149,8 +151,10 @@ class ABC_GenerativeModel(market):
         output_histogram = copy.deepcopy(current_histogram)
         if self.params['input_histograms_are_normalized'] and (sum(output_histogram) > 0):
             output_histogram = list(np.array(output_histogram) / (1.0 * sum(output_histogram)))
-        print('output_histogram', output_histogram)
+        # print('output_histogram', output_histogram)
         return output_histogram
+
+
 
 
 ################################################################################
@@ -264,6 +268,7 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
             print('ACCEPTED!!',accepted_count,theta)
 
         else:
+            print('REJECTED!!', trial_count - accepted_count, theta)
             pass
             #rejected.append(theta)
 
@@ -282,3 +287,32 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
     return (posterior, distances,
             accepted_count, trial_count,
             epsilon)#, weights, tau_squared, eff_sample)
+
+
+def eval_ABC_posterior(true_theta, model, epsilon, n_posterior_samples=10, n_estimates=10,
+                   estimator_type='posterior_mean', bin_size=10):
+    '''Given true theta generates data and uses the generated in ABC to get posteriors samples and evaluates the quality
+    of posteriors samples as estimators for true theta. Two modes of estimation: MAP and Bayes estimator (mean_posterior)
+    '''
+    theta_estimates = np.zeros(n_estimates)
+    for i in range(n_estimates):
+        print('i:',i)
+        data = model.generate_data(true_theta)
+        (posterior_samples, _, _, _, _) = basic_abc(model, data, epsilon, n_posterior_samples)
+        posterior_samples = np.asarray(posterior_samples)
+        plt.hist(posterior_samples)
+        plt.show()
+        if estimator_type == 'posterior_mean':
+            theta_estimates[i] = posterior_samples.mean()
+        elif estimator_type == 'MAP':
+            hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+            j = np.argmax(hist)
+            theta_estimates[i] = (bin_edges[j] + bin_edges[j + 1]) / 2.
+    error = 0
+    if estimator_type == 'posterior_mean':
+        error = np.sum((estimated_theta - true_theta) ** 2 for estimated_theta in theta_estimates)
+    elif estimator_type == 'MAP':
+        error = np.sum(abs(estimated_theta - true_theta) for estimated_theta in theta_estimates)
+    error /= n_estimates
+
+    return error, theta_estimates
