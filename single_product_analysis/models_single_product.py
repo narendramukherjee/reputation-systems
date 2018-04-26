@@ -301,7 +301,10 @@ class market(consumer):
                 np.log((1 - self.params['consumer_fit_distribution'].cdf(quality_anchor + 1.5 - infer_quality)) ** value[4]))
 
         model = mc.MCMC([infer_quality, histogram_mental_model])
-        model.sample(iter=100, progress_bar=False)
+        model.sample(iter=1000, burn=300, thin=10, progress_bar=False)
+        #  the MH alg is run for iter=1000 times
+        #  the  first burn=300 samples are dumped and from that point on every thin=10 sample one is taken
+        #  thin is to avoid correlation among samples.
         self.percieved_qualities += [np.mean(model.trace('infer_quality')[:])]
 
     def step(self):
