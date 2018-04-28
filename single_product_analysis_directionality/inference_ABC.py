@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import random
 import settings
 import numpy as np
-from models_single_product import market
+from models_single_product_mcmc_replaced import market
 import copy
 random.seed()
 
@@ -67,7 +67,7 @@ class ABC_GenerativeModel(market):
         """
         # print('prior is:', self.prior)
         theta = np.random.choice(self.prior)
-        print('drawn theta:', theta)
+        # print('drawn theta:', theta)
         return theta
 
     def generate_data(self, theta):
@@ -90,7 +90,7 @@ class ABC_GenerativeModel(market):
         """
         # return np.asarray(data.iloc[-1])
         summary = np.asarray(self.process_raw_timeseries(data, processed_output='histogram'))
-        print('summary', summary)
+        # print('summary', summary)
         return summary
 
     def distance_function(self, summary_stats, summary_stats_synth):
@@ -161,7 +161,7 @@ class ABC_GenerativeModel(market):
 #########################    ABC Algorithms   ##################################
 ################################################################################
 
-def basic_abc(model, data, epsilon=1, min_samples=10):
+def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
     # ,
     #           parallel=False, n_procs='all', pmc_mode=False,
     #           weights='None', theta_prev='None', tau_squared='None'):
@@ -265,11 +265,12 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
             accepted_count += 1
             posterior.append(theta)
             distances.append(distance)
-            print('ACCEPTED!!',accepted_count,theta)
+            print('ACCEPTED!!',  accepted_count, 'out of', trial_count, theta)
 
         else:
-            print('REJECTED!!', trial_count - accepted_count, theta)
-            pass
+            if verbose:
+                print('REJECTED!!', trial_count - accepted_count, theta)
+                # pass
             #rejected.append(theta)
 
     posterior = np.asarray(posterior).T
@@ -289,6 +290,87 @@ def basic_abc(model, data, epsilon=1, min_samples=10):
             epsilon)#, weights, tau_squared, eff_sample)
 
 
+
+# error type can be 'MSE' or 'MAE'
+# estimator types can be 'posterior_mean', 'posterior_median', 'MAP'
+class Estimator():
+    def __init__(self, model, epsilon, n_posterior_samples=10, n_samples=10,
+                 estimator_type='posterior_mean', bin_size=10, error_type='MSE'):
+        self.model = model
+        self.n_samples = n_samples # number of samples generated for each true theta to test the estimator for
+        # the given theta
+        self.n_posterior_samples = n_posterior_samples # number of samples from the posterior toi construct an estimator
+        self.estimator_type=estimator_type # estimator_type can be 'posterior_mean', 'MAP', 'median'
+        self.bin_size = bin_size
+        self.error_type = error_type  # error type can be MSE or MAE
+        self.epsilon = epsilon
+
+    def get_estimates(self, true_theta, bin_size=5, do_hist=False):
+        theta_estimates = np.zeros(self.n_samples)
+        for i in range(self.n_samples):
+            data = self.model.generate_data(true_theta)
+            (posterior_samples, _, _, _, _) = basic_abc(self.model, data, self.epsilon, self.n_posterior_samples)
+            posterior_samples = np.asarray(posterior_samples)
+            # print('sampled_thetas:',sampled_thetas)
+            if do_hist:
+                plt.hist(posterior_samples)
+                plt.show()
+                plt.title('Posterior Samples for theta = '+str(true_theta))
+            # print(self.estimator_type)
+            if self.estimator_type == 'posterior_mean':
+                theta_estimates[i] = posterior_samples.mean()
+            elif self.estimator_type == 'MAP':
+                hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+                j = np.argmax(hist)
+                theta_estimates[i] = (bin_edges[j] + bin_edges[j+1]) / 2.0
+            elif self.estimator_type == 'posterior_median':
+                theta_estimates[i] = np.median(posterior_samples)
+        error = 0
+        if self.error_type == 'MSE':
+            error = np.sum((selected_theta - true_theta)**2 for selected_theta in theta_estimates)
+        elif self.error_type == 'MAE':
+            error = np.sum(abs(selected_theta - true_theta) for selected_theta in theta_estimates)
+        error /= self.n_samples
+        return error, theta_estimates
+
+    def get_estimates_for_true_thetas(self, true_thetas=[2,4,6], do_plot=True, symmetric=False,verbose=True):
+        estimated_thetas = [] # a list of theta_estimated for each true_theta
+        mean_estimated_thetas = []
+        errors = []
+        for true_theta in true_thetas:
+            if verbose:
+                print('true theta:', true_theta)
+            theta_error, theta_estimates = self.get_estimates(true_theta, do_hist=False)
+            estimated_thetas += [theta_estimates]
+            mean_estimated_thetas += [np.mean(theta_estimates)]
+            errors += [theta_error]
+            if verbose:
+                print('theta estimates:', theta_estimates)
+        if do_plot:
+            if symmetric:
+                plt.figure()
+                plt.errorbar(true_thetas, mean_estimated_thetas, yerr=errors)
+                plt.title(self.estimator_type + 'performance')
+                plt.xlabel('true theta')
+                plt.ylabel(self.estimator_type)
+                plt.show()
+            else: # not symmetric
+                lower_errors = []
+                upper_errors = []
+                for i in range(len(true_thetas)):
+                    theta_estimates = estimated_thetas[i]
+                    lower_errors += [abs(np.min(theta_estimates) - true_thetas[i])]
+                    upper_errors += [abs(np.max(theta_estimates) - - true_thetas[i])]
+                asymmetric_errors = [lower_errors, upper_errors]
+                plt.figure()
+                plt.errorbar(true_thetas, mean_estimated_thetas, yerr=asymmetric_errors)
+                plt.title(self.estimator_type + 'performance')
+                plt.xlabel('true theta')
+                plt.ylabel(self.estimator_type)
+                plt.show()
+
+
+# Replaced with the Estimator class:
 def eval_ABC_posterior(true_theta, model, epsilon, n_posterior_samples=10, n_estimates=10,
                    estimator_type='posterior_mean', bin_size=10):
     '''Given true theta generates data and uses the generated in ABC to get posteriors samples and evaluates the quality
