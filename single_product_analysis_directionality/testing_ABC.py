@@ -7,17 +7,19 @@ random.seed()
 
 if __name__ == '__main__':
 
-    true_thetas = [0.5,1,1.5]
+    true_thetas = [1.5]
     prior_theta = np.linspace(0, 2, 100)
-    gen_model = ABC_GenerativeModel(params={}, prior=prior_theta, conditioning=False, direction=None)
+    gen_model = ABC_GenerativeModel(params={}, prior=prior_theta,
+                                    conditioning=False, direction=None)
 
     # error, theta_estimates = eval_ABC_posterior(true_theta, gen_model, epsilon=0.03, n_posterior_samples=20, n_estimates=2,
     #                    estimator_type='posterior_mean', bin_size=10)
 
-    estimator = Estimator(gen_model, epsilon=0.015, n_posterior_samples=50, n_samples=5,
-                 estimator_type='MAP', bin_size=5, error_type='MSE')
+    estimator = Estimator(gen_model, epsilon=0.016, n_posterior_samples=100, n_samples=5,
+                 estimator_type='posterior_mean', bin_size=5, error_type='MSE')
 
-    estimator.get_estimates_for_true_thetas(true_thetas, do_plot=True, symmetric=False, verbose=True)
+    estimator.get_estimates_for_true_thetas(true_thetas, do_plot=True, symmetric=False,
+                                            verbose=True, do_hist=True)
 
     # print('error:', error)
     # print('theta_estimates (posterior means):', theta_estimates)

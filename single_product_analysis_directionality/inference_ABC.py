@@ -333,14 +333,15 @@ class Estimator():
         error /= self.n_samples
         return error, theta_estimates
 
-    def get_estimates_for_true_thetas(self, true_thetas=[2,4,6], do_plot=True, symmetric=False,verbose=True):
+    def get_estimates_for_true_thetas(self, true_thetas=[2,4,6], do_plot=True, do_hist=False,
+                                      symmetric=False,verbose=True):
         estimated_thetas = [] # a list of theta_estimated for each true_theta
         mean_estimated_thetas = []
         errors = []
         for true_theta in true_thetas:
             if verbose:
                 print('true theta:', true_theta)
-            theta_error, theta_estimates = self.get_estimates(true_theta, do_hist=False)
+            theta_error, theta_estimates = self.get_estimates(true_theta, do_hist=do_hist)
             estimated_thetas += [theta_estimates]
             mean_estimated_thetas += [np.mean(theta_estimates)]
             errors += [theta_error]
@@ -371,30 +372,30 @@ class Estimator():
 
 
 # Replaced with the Estimator class:
-def eval_ABC_posterior(true_theta, model, epsilon, n_posterior_samples=10, n_estimates=10,
-                   estimator_type='posterior_mean', bin_size=10):
-    '''Given true theta generates data and uses the generated in ABC to get posteriors samples and evaluates the quality
-    of posteriors samples as estimators for true theta. Two modes of estimation: MAP and Bayes estimator (mean_posterior)
-    '''
-    theta_estimates = np.zeros(n_estimates)
-    for i in range(n_estimates):
-        print('i:',i)
-        data = model.generate_data(true_theta)
-        (posterior_samples, _, _, _, _) = basic_abc(model, data, epsilon, n_posterior_samples)
-        posterior_samples = np.asarray(posterior_samples)
-        plt.hist(posterior_samples)
-        plt.show()
-        if estimator_type == 'posterior_mean':
-            theta_estimates[i] = posterior_samples.mean()
-        elif estimator_type == 'MAP':
-            hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
-            j = np.argmax(hist)
-            theta_estimates[i] = (bin_edges[j] + bin_edges[j + 1]) / 2.
-    error = 0
-    if estimator_type == 'posterior_mean':
-        error = np.sum((estimated_theta - true_theta) ** 2 for estimated_theta in theta_estimates)
-    elif estimator_type == 'MAP':
-        error = np.sum(abs(estimated_theta - true_theta) for estimated_theta in theta_estimates)
-    error /= n_estimates
-
-    return error, theta_estimates
+# def eval_ABC_posterior(true_theta, model, epsilon, n_posterior_samples=10, n_estimates=10,
+#                    estimator_type='posterior_mean', bin_size=10):
+#     '''Given true theta generates data and uses the generated in ABC to get posteriors samples and evaluates the quality
+#     of posteriors samples as estimators for true theta. Two modes of estimation: MAP and Bayes estimator (mean_posterior)
+#     '''
+#     theta_estimates = np.zeros(n_estimates)
+#     for i in range(n_estimates):
+#         print('i:',i)
+#         data = model.generate_data(true_theta)
+#         (posterior_samples, _, _, _, _) = basic_abc(model, data, epsilon, n_posterior_samples)
+#         posterior_samples = np.asarray(posterior_samples)
+#         plt.hist(posterior_samples)
+#         plt.show()
+#         if estimator_type == 'posterior_mean':
+#             theta_estimates[i] = posterior_samples.mean()
+#         elif estimator_type == 'MAP':
+#             hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+#             j = np.argmax(hist)
+#             theta_estimates[i] = (bin_edges[j] + bin_edges[j + 1]) / 2.
+#     error = 0
+#     if estimator_type == 'posterior_mean':
+#         error = np.sum((estimated_theta - true_theta) ** 2 for estimated_theta in theta_estimates)
+#     elif estimator_type == 'MAP':
+#         error = np.sum(abs(estimated_theta - true_theta) for estimated_theta in theta_estimates)
+#     error /= n_estimates
+#
+#     return error, theta_estimates
