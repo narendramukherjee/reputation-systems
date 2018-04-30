@@ -39,25 +39,18 @@ class ABC_GenerativeModel(market):
         self.data = data # this is the observed data
         self.data_summary_stats = self.summary_stats(self.data)
 
-    def set_epsilon(self, epsilon):
+    def set_epsilons(self, epsilons):
         """
         A method to give the model object the value of epsilon if your model
         code needs to know it.
         """
-        self.epsilon = epsilon
-
-    # def generate_data_and_reduce(self, theta):
-    #     """
-    #     A combined method for
-    #     (i) generating data,
-    #     (ii) calculating summary statistics
-    #     (iii) and evaluating the distance function
-    #     """
-    #     synthetic_data = self.generate_data(theta)
-    #     synthetic_summary_stats = self.summary_stats(synthetic_data)
-    #     distance = self.distance_function(synthetic_summary_stats, self.data_summary_stats)
-    #
-    #     return distance
+        if len(epsilons) > 1:
+            assert len(epsilons) == settings.number_of_summaries,\
+                "the length of epsilon does not match number_of_summaries"
+        elif len(epsilons) == 1:
+            epsilons = [epsilons[0]]*settings.number_of_summaries
+        print('epsilons:', epsilons)
+        self.epsilons = epsilons
 
     def draw_theta(self):
         """
@@ -83,16 +76,23 @@ class ABC_GenerativeModel(market):
         # print('synthetic', data)
         return data
 
-    def summary_stats(self, data):
+    def summary_stats(self, data,number=2,spacing=10):
         """
         Sub-classable method for computing summary statistics.
         This method should return an array-like iterable of summary statistics
         taking an array/matrix/table as an argument
         """
+
+        # print('input to summary stats:', data)
         # return np.asarray(data.iloc[-1])
-        summary = np.asarray(self.process_raw_timeseries(data, processed_output='histogram'))
+        processed_data = self.process_raw_timeseries(data, processed_output='histograms')
+        # print('processed_data in summary_states:', processed_data)
+        summaries = np.zeros([number,settings.number_of_rating_levels])
+        for num in range(number):
+            summaries[num] = np.asarray(processed_data[-(1+num*spacing)])
+        # summary = np.asarray(self.process_raw_timeseries(data, processed_output='histogram'))
         # print('summary', summary)
-        return summary
+        return summaries
 
     def distance_function(self, summary_stats, summary_stats_synth):
         """
@@ -102,10 +102,17 @@ class ABC_GenerativeModel(market):
         summary statistics as an argument (nominally the observed summary
         statistics and .
         """
-        distance = 0.2*sum(abs(summary_stats-summary_stats_synth))
-        return distance
+        # print('summary_stats:',summary_stats)
+        # print('summary_stats_synth:',summary_stats_synth)
+        assert summary_stats.shape == summary_stats_synth.shape, "summary_stats dimensions mismatch"
+        number = summary_stats.shape[0]
+        distances = np.zeros(number)
+        for num in range(number):
+            distances[num] = 0.2 * sum(abs(summary_stats[num] - summary_stats_synth[num]))
+        # print('distances:',distances)
+        return distances
 
-    def process_raw_timeseries(self,raw_timeseries, processed_output='histogram'):
+    def process_raw_timeseries(self,raw_timeseries, processed_output='histograms'):
         """Returns the histogram can be applied to the the output of generateTimeseries(raw=True)
         should do all_ratings = list(raw_timeseries['Rating']) before applying process_raw_timeseries() on the data from
         tablets.
@@ -139,21 +146,20 @@ class ABC_GenerativeModel(market):
         else:
             all_ratings = raw_timeseries
 
-        if processed_output == 'histogram':
+        if processed_output == 'histograms':
             current_histogram = [0] * self.params['number_of_rating_levels']
-            # histogram_timeseries = [[0] * self.params['number_of_rating_levels']]
-            # print()
+            histogram_timeseries = [[0] * settings.number_of_rating_levels]
+            
             for rating in all_ratings:
                 # print(rating)
                 current_histogram[rating - 1] += 1
-                # append_histogram = copy.deepcopy(current_histogram)
-                # histogram_timeseries.append(append_histogram)
-        # df = pd.DataFrame(histogram_timeseries)
-        output_histogram = copy.deepcopy(current_histogram)
-        if self.params['input_histograms_are_normalized'] and (sum(output_histogram) > 0):
-            output_histogram = list(np.array(output_histogram) / (1.0 * sum(output_histogram)))
-        # print('output_histogram', output_histogram)
-        return output_histogram
+                append_histogram = copy.deepcopy(current_histogram)
+                if self.params['input_histograms_are_normalized'] and (sum(append_histogram) > 0):
+                    append_histogram = list(np.array(append_histogram) / (1.0 * sum(append_histogram)))
+                histogram_timeseries.append(append_histogram)
+        output_histograms_time_series = copy.deepcopy(histogram_timeseries)
+        # print('output_histograms_time_series in process raw time series', output_histograms_time_series)
+        return output_histograms_time_series
 
 
 
@@ -162,7 +168,7 @@ class ABC_GenerativeModel(market):
 #########################    ABC Algorithms   ##################################
 ################################################################################
 
-def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
+def basic_abc(model, data, epsilons=[1.0], min_samples=10,verbose=False):
     # ,
     #           parallel=False, n_procs='all', pmc_mode=False,
     #           weights='None', theta_prev='None', tau_squared='None'):
@@ -184,7 +190,7 @@ def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
         A model that is a subclass of simpleabc.Model
     data  : object, array_like
         The "observed" data set for inference.
-    epsilon : float, optional
+    epsilon : list of floats, optional
         The tolerance to accept parameter draws, default is 1.
     min_samples : int, optional
         Minimum number of posterior samples.
@@ -231,11 +237,11 @@ def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
     Forth coming.
     """
 
-    posterior, rejected, distances = [], [], []
+    posterior, rejected, accepted_distances = [], [], []
     trial_count, accepted_count = 0, 0
 
     data_summary_stats = model.summary_stats(data)
-    model.set_epsilon(epsilon)
+    model.set_epsilons(epsilons)
 
     while accepted_count < min_samples:
         trial_count += 1
@@ -259,13 +265,18 @@ def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
 
         synthetic_summary_stats = model.summary_stats(synthetic_data)
 
-        distance = model.distance_function(data_summary_stats,
+        distances = model.distance_function(data_summary_stats,
                                            synthetic_summary_stats)
 
-        if distance < epsilon:
+        accept = True
+        for i in range(settings.number_of_summaries):
+            if distances[i] > model.epsilons[i]:
+                accept = False
+
+        if accept:
             accepted_count += 1
             posterior.append(theta)
-            distances.append(distance)
+            accepted_distances.append(distances)
             print('ACCEPTED!!',  accepted_count, 'out of', trial_count, theta)
 
         else:
@@ -288,14 +299,14 @@ def basic_abc(model, data, epsilon=1, min_samples=10,verbose=False):
 
     return (posterior, distances,
             accepted_count, trial_count,
-            epsilon)#, weights, tau_squared, eff_sample)
+            epsilons)#, weights, tau_squared, eff_sample)
 
 
 
 # error type can be 'MSE' or 'MAE'
 # estimator types can be 'posterior_mean', 'posterior_median', 'MAP'
 class Estimator():
-    def __init__(self, model, epsilon, n_posterior_samples=10, n_samples=10,
+    def __init__(self, model, epsilons, n_posterior_samples=10, n_samples=10,
                  estimator_type='posterior_mean', bin_size=10, error_type='MSE'):
         self.model = model
         self.n_samples = n_samples # number of samples generated for each true theta to test the estimator for
@@ -304,13 +315,13 @@ class Estimator():
         self.estimator_type=estimator_type # estimator_type can be 'posterior_mean', 'MAP', 'median'
         self.bin_size = bin_size
         self.error_type = error_type  # error type can be MSE or MAE
-        self.epsilon = epsilon
+        self.epsilons = epsilons
 
     def get_estimates(self, true_theta, bin_size=5, do_hist=False):
         theta_estimates = np.zeros(self.n_samples)
         for i in range(self.n_samples):
             data = self.model.generate_data(true_theta)
-            (posterior_samples, _, _, _, _) = basic_abc(self.model, data, self.epsilon, self.n_posterior_samples)
+            (posterior_samples, _, _, _, _) = basic_abc(self.model, data, self.epsilons, self.n_posterior_samples)
             posterior_samples = np.asarray(posterior_samples)
             # print('sampled_thetas:',sampled_thetas)
             if do_hist:

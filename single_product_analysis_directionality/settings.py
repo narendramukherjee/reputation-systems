@@ -14,7 +14,11 @@ tracked_product_ID = 'B002C7481G'  # Apple
 # tracked_product_ID = 'B005B9G79I'  # Vizio
 
 
+number_of_rating_levels = 5
+
 observed_params = pickle.load(open('./data/'+'ratio_params_'+tracked_product_ID+'.pkl', 'rb'))
+
+number_of_summaries = 2
 
 print(observed_params)
 
@@ -43,7 +47,7 @@ def process_observed_params(observed_params, tracked_product_ID):
     # params['input_type'] = 'averages'
     params['input_type'] = 'histograms'
     # 'input_histograms_are_normalized': True,
-    params['number_of_rating_levels'] = 5
+    params['number_of_rating_levels'] = number_of_rating_levels
     params['consumer_fit_std'] = observed_params['consumer_fit_std'][0]
     print(params)
     return params
