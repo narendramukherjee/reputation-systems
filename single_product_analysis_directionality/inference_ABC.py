@@ -34,7 +34,6 @@ class ABC_GenerativeModel(market):
         self.direction = direction
         self.prior = prior
 
-
     def set_data(self, data):
         self.data = data # this is the observed data
         self.data_summary_stats = self.summary_stats(self.data)
@@ -149,7 +148,7 @@ class ABC_GenerativeModel(market):
         if processed_output == 'histograms':
             current_histogram = [0] * self.params['number_of_rating_levels']
             histogram_timeseries = [[0] * settings.number_of_rating_levels]
-            
+
             for rating in all_ratings:
                 # print(rating)
                 current_histogram[rating - 1] += 1

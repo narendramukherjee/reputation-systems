@@ -1,17 +1,16 @@
 # generative model for reviews
 # this version is used to generate the histogram of reviews for a particular product over time, irrespective of the
 # choice of a particular product among many. There is a single decision to purchase or not to purchase that each consumer
-# faces, follwed by a decision to leave a review or not.
+# faces, followed by a decision to leave a review or not.
 # The parameters are the parameters of a single product.
 
-import torch
-import pymc as mc
+
 import numpy as np
 import random as RD
 import scipy.stats as st
 import pandas as pd
 import copy
-import pickle
+
 
 RD.seed()
 
