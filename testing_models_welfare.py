@@ -7,11 +7,8 @@ import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
 
-
-
-
     dynamics = market()
-    dynamics.params['total_number_of_reviews'] = 1000re
+    dynamics.params['total_number_of_reviews'] = 100
     print(dynamics.generateTimeseries())
     print(dynamics.regret)
     print(dynamics.disappointment)

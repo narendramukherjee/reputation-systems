@@ -14,21 +14,19 @@ if __name__ == '__main__':
     print(dynamics.params)
 
     print('A Torch Sample')
-    data, avg_reviews, percieved_qualities = dynamics.generateTimeseries(get_percieved_qualities_and_avg_reviews=True)
+    data, avg_reviews_all_consumers, percieved_qualities = \
+        dynamics.generateTimeseries(get_percieved_qualities_and_avg_reviews=True)
+    true_quality = [dynamics.params['true_quality']] * len(percieved_qualities)
     print(data)
-    print(avg_reviews)
+    print(avg_reviews_all_consumers)
     print(percieved_qualities)
     print(dynamics.params)
 
-    plt.plot(avg_reviews)
-    plt.title('avg_reviews')
+    # plt.hold(True) the hold use is depreciated the default behavior is
+
+    percieved_qualities_plot, = plt.plot(percieved_qualities, color='g', label='perceived')
+    true_quality_plot,  = plt.plot(true_quality, color='r', label='true')
+    avg_reviews_all_consumers_plot, = plt.plot(avg_reviews_all_consumers, color='b', label='observed_averages')
+    plt.legend([percieved_qualities_plot,true_quality_plot,avg_reviews_all_consumers_plot],
+               ["perceived", "true", "observed_averages"])
     plt.show()
-
-    plt.plot(percieved_qualities)
-    plt.title('percieved_qualities')
-    plt.show()
-
-    # print('A Torch Dataset with two samples')
-    # dataset = dynamics.genTorchDataset(2)
-    # print(dataset)
-

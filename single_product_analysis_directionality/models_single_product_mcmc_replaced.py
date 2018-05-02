@@ -122,6 +122,7 @@ class consumer(product):
                                  self.params['neutral_quality'] + 0.5, self.params['neutral_quality'] + 1.5]
 
             experienced_quality = self.params['true_quality'] + self.consumer_private_fit
+            print('true_quality',self.params['true_quality'])
 
             product_review = int(1 + sum(1.0 * (experienced_quality >= np.array(review_levels))))
 
@@ -223,6 +224,8 @@ class market(consumer):
         self.avg_reviews = []
         self.histogram_reviews = [0] * self.params['number_of_rating_levels']
         self.percieved_qualities = []
+        self.avg_reviews_all_consumers = [] # the avg review that each consumer observes will have the same length as
+        # the perceived quality
 
         self.customer_count = 0
         self.purchase_decisions = []
@@ -234,6 +237,8 @@ class market(consumer):
         else:
             quality_anchor = self.params['neutral_quality']
 
+
+
         observed_histograms = self.histogram_reviews
 
         # infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_quality'],
@@ -244,9 +249,12 @@ class market(consumer):
             'quality_std']))  # evaluate prior by plugging in above values to PDF (take log for ease of underflow errors: small numbers problem)
 
         data = observed_histograms
-        # quality anchor is fixed. 4 values of interest: quality anchor - (0.5 + infer_qual); quality anchor - (1.5 + infer_qual); quality anchor + (0.5 - infer_qual); quality anchor + (1.5 - infer_qual)
+        # quality anchor is fixed. 4 values of interest:
+        # quality anchor - (0.5 + infer_qual); quality anchor - (1.5 + infer_qual);
+        # quality anchor + (0.5 - infer_qual); quality anchor + (1.5 - infer_qual)
         # form two vectors, each with 2 rows, based on the above definition
-        # then, evaluate the cdf part by part by utilising these values - reduces recomputing same estimates and speeds up calculation
+        # then, evaluate the cdf part by part by utilising these values -
+        # reduces recomputing same estimates and speeds up calculation
         consumer_fit_test_vals1 = np.tile(np.array([0.5, 1.5]).reshape(2, 1), (1, infer_quality.shape[0])) + np.tile(
             infer_quality.reshape(1, infer_quality.shape[0]), (2, 1))
         consumer_fit_test_vals2 = np.tile(np.array([0.5, 1.5]).reshape(2, 1), (1, infer_quality.shape[0])) - np.tile(
@@ -261,7 +269,9 @@ class market(consumer):
                          np.log(consumer_fit_cdf2[1, :] - consumer_fit_cdf2[0, :]) * data[3] + \
                          np.log(1 - consumer_fit_cdf2[1, :]) * data[4]
         posterior = np.exp(log_prior + log_likelihood)
+
         self.percieved_qualities += [np.sum(posterior * infer_quality / np.sum(posterior))]
+        self.avg_reviews_all_consumers += [quality_anchor]
 
     def step(self):
         self.init_consumer_private_parameters()
@@ -325,7 +335,7 @@ class market(consumer):
             df = pd.DataFrame(timeseries)
 
         if get_percieved_qualities_and_avg_reviews:
-            return df, self.avg_reviews, self.percieved_qualities
+            return df, self.avg_reviews_all_consumers, self.percieved_qualities
         else:
             return df
 
