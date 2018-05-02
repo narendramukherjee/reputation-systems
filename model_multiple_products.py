@@ -35,7 +35,7 @@ class product():
             self.params['product_features']['feature'] = [1,2,3,4]
         if 'neutral_qualities' not in self.fixed_params:
             self.params['neutral_population_qualities'] = [3]*self.params['number_of_products']
-            # print(self.params['neutral_population_qualities'])
+            #print(self.params['neutral_population_qualities'])
         if 'qualities_std' not in self.fixed_params:
             self.params['qualities_std'] = 1.5
         if 'true_qualities' not in self.fixed_params:
@@ -95,12 +95,7 @@ class consumer(product):
                                   + np.array(self.percieved_qualities) + np.array(list(self.consumer_private_fit.values())))
         product_index = np.argmax(expected_utilities)
 
-        realized_utilities = list(features_utility + price_utility + np.array(self.params['true_qualities']) +
-                                  np.array(list(self.consumer_private_fit.values())))
-
-        best_product = np.argmax(realized_utilities)
-
-        return product_index,best_product,realized_utilities,expected_utilities
+        return product_index
 
     def evaluate_product(self,product_index):
 
@@ -118,13 +113,11 @@ class consumer(product):
         if np.random.binomial(1, self.params['tendency_to_rate']):
             decision = True
         elif self.avg_reviews[product_index]:  # it is not the first review
-            decision = ((((product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold_above']) or
-                         ((product_review - self.avg_reviews[product_index][-1]) < self.params['rate_decision_threshold_below']))
-                        and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
-            # decision = (abs(product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold']) \
-            #            and (np.random.binomial(1, min(3*self.params['tendency_to_rate'],1)))
+            decision = (abs(product_review - self.avg_reviews[product_index][-1]) > self.params['rate_decision_threshold']) \
+                       and (np.random.binomial(1, min(3*self.params['tendency_to_rate'],1)))
         else:
             decision = False
+
         return decision
 
 
@@ -143,17 +136,14 @@ class market(consumer):
         if 'population_alpha' not in self.fixed_params:
             self.params['population_alpha'] = [np.random.uniform(-3, -2), 1]
         if 'total_number_of_reviews' not in self.fixed_params:
-            self.params['total_number_of_reviews'] = 100
+            self.params['total_number_of_reviews'] = 20
 
     def set_random_params(self):
         """Randomly sets the parameters that are the subject of inference by the inference engine. The parameters are
         randomized according to the prior distributions"""
-        if 'rate_decision_threshold_above' not in self.fixed_params:
-            self.params['rate_decision_threshold_above'] = RD.choice([-1.0,1.0])
-            self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
-
-        # if 'rate_decision_threshold' not in self.fixed_params:
-        #     self.params['rate_decision_threshold'] = RD.choice([-1.0,1.0])
+        if 'rate_decision_threshold' not in self.fixed_params:
+            #self.params['rate_decision_threshold'] = RD.choice([-1.0,1.0])
+            self.params['rate_decision_threshold'] = 1.0
 
     def init_reputation_dynamics(self):
 
@@ -161,53 +151,88 @@ class market(consumer):
         self.reviews = {key: [] for key in self.params['product_indices']}
         self.avg_reviews = {key: [3] for key in self.params['product_indices']}
         self.histogram_reviews = {key: [0] * self.params['number_of_rating_levels'] for key in self.params['product_indices']}
-        self.best_realized_utility = []
-        self.regret = []  # the difference between the best realization of utilities and the experienced utility
-        self.disappointment = []  # the difference between the expected utility and the experienced utility
+
         self.customer_count = 0
         self.purchased_products = []
         self.purchase_count = [0] * self.params['number_of_products']
-        self.best_choice_made = []
 
-    def form_perception_of_quality(self):
+    def form_perception_of_quality(self): #### CHECK ###
+        if self.avg_reviews:
+            quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
 
-        # print('we are at the begining of perception', self.params['neutral_population_qualities'])
-
-        quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
+        else:
+            quality_anchors = self.params['neutral_population_qualities']
 
         observed_histograms = list(map(lambda product: self.histogram_reviews[product], self.histogram_reviews.keys()))
 
+
+        # infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_quality'],
+        #                          tau=self.params['quality_std'])  # this is the prior on the quality
+
         for product in self.params['product_indices']:
-            infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_population_qualities'][product],
-                                      tau=1/(self.params['qualities_std']**2))  # this the prior on the quality
+            infer_quality = np.linspace(-1.0, 8.0, 1000)  # assume quality is between -1 and 8 (1000 bins in between)
+            # evaluate prior by plugging in above values to PDF (take log for ease of underflow errors: small numbers problem)
+            log_prior = np.log(st.norm.pdf(infer_quality,
+                                           loc=self.params['neutral_population_qualities'][product],
+                                           scale=self.params['qualities_std']))
 
             data = observed_histograms[product]
+            # quality anchor is fixed. 4 values of interest: quality anchor - (0.5 + infer_qual); quality anchor - (1.5 + infer_qual); quality anchor + (0.5 - infer_qual); quality anchor + (1.5 - infer_qual)
+            # form two vectors, each with 2 rows, based on the above definition
+            # then, evaluate the cdf part by part by utilising these values - reduces recomputing same estimates and speeds up calculation
+            consumer_fit_test_vals1 = np.tile(np.array([0.5, 1.5]).reshape(2, 1), (1, infer_quality.shape[0])) + \
+                                  np.tile(infer_quality.reshape(1, infer_quality.shape[0]), (2, 1))
+            consumer_fit_test_vals2 = np.tile(np.array([0.5, 1.5]).reshape(2, 1), (1, infer_quality.shape[0])) - \
+                                  np.tile(infer_quality.reshape(1, infer_quality.shape[0]), (2, 1))
+            consumer_fit_cdf1 = self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - consumer_fit_test_vals1)
+            consumer_fit_cdf2 = self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + consumer_fit_test_vals2)
+            # if we take the vector log_prior, we can perform the operation of +- etc to the WHOLE vector instead of taking point by point evaluations and summing
 
-            @mc.stochastic(observed=True)
-            def histogram_mental_model(value=data, infer_quality=infer_quality):
-                np.log((1 - self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality)) ** value[4])
-                (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality) -
-                  self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality)) ** value[3]
+            log_likelihood = np.log(consumer_fit_cdf1[1, :]) * data[0] + \
+                         np.log(consumer_fit_cdf1[0, :] - consumer_fit_cdf1[1, :]) * data[1] + \
+                         np.log(consumer_fit_cdf2[0, :] - consumer_fit_cdf1[0, :]) * data[2] + \
+                         np.log(consumer_fit_cdf2[1, :] - consumer_fit_cdf2[0, :]) * data[3] + \
+                         np.log(1 - consumer_fit_cdf2[1, :]) * data[4]
+            posterior = np.exp(log_prior + log_likelihood)
+            self.percieved_qualities[product] = np.sum(posterior * infer_quality / np.sum(posterior))
 
-                return np.sum(
-                    np.log((self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 1.5 - infer_quality)) ** value[0]) +
-                    np.log(
-                        (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 0.5 - infer_quality) -
-                         self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 1.5 - infer_quality)) ** value[1]) +
-                    np.log(
-                        (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality) -
-                         self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 0.5 - infer_quality)) ** value[2]) +
-                    np.log(
-                        (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality) -
-                         self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality)) ** value[3]) +
-                    np.log((1 - self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality)) ** value[4]))
-
-            model = mc.MCMC([infer_quality, histogram_mental_model])
-            model.sample(iter=1000, burn=300, thin=10, progress_bar=False)
-            #  the MH alg is run for iter=1000 times
-            #  the  first burn=300 samples are dumped and from that point on every thin=10 sample one is taken
-            #  thin is to avoid correlation among samples.
-            self.percieved_qualities[product] = np.mean(model.trace('infer_quality')[:])
+    # def form_perception_of_quality(self):
+    #
+    #
+    #     # print('we are at the begining of perception', self.params['neutral_population_qualities'])
+    #
+    #     quality_anchors = list(map(lambda product: self.avg_reviews[product][-1], self.avg_reviews.keys()))
+    #
+    #     observed_histograms = list(map(lambda product: self.histogram_reviews[product], self.histogram_reviews.keys()))
+    #
+    #     for product in self.params['product_indices']:
+    #         infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_population_qualities'][product],
+    #                                   tau=self.params['qualities_std'])  # this the prior on the quality
+    #
+    #         data = observed_histograms[product]
+    #
+    #         @mc.stochastic(observed=True)
+    #         def histogram_mental_model(value=data, infer_quality=infer_quality):
+    #             #np.log((1 - self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality)) ** value[4])
+    #             #(self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality) -
+    #             #  self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality)) ** value[3]
+    #
+    #             return np.sum(
+    #                 np.log((self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 1.5 - infer_quality)) ** value[0]) +
+    #                 np.log(
+    #                     (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 0.5 - infer_quality) -
+    #                      self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 1.5 - infer_quality)) ** value[1]) +
+    #                 np.log(
+    #                     (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality) -
+    #                      self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] - 0.5 - infer_quality)) ** value[2]) +
+    #                 np.log(
+    #                     (self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality) -
+    #                      self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 0.5 - infer_quality)) ** value[3]) +
+    #                 np.log((1 - self.params['consumer_fit_distributions'][product].cdf(quality_anchors[product] + 1.5 - infer_quality)) ** value[4]))
+    #
+    #         model = mc.MCMC([infer_quality, histogram_mental_model])
+    #         model.sample(iter=100, progress_bar=False)
+    #         self.percieved_qualities[product] = np.mean(model.trace('infer_quality')[:])
 
         # print('we are at the end of perception', self.params['neutral_population_qualities'])
         # print('we are at the end of perception', self.percieved_qualities)
@@ -221,13 +246,7 @@ class market(consumer):
             self.params['neutral_population_qualities'] = [3.0] * self.params['number_of_products']
 
         self.form_perception_of_quality()
-        product_index,best_product,realized_utilities,expected_utilities = self.make_purchase()
-
-        # print(product_index,best_product,realized_utilities,expected_utilities)
-        self.best_realized_utility += [realized_utilities[best_product]]
-        self.regret += [realized_utilities[best_product] - realized_utilities[product_index]]  # the difference between the best realization of utilities and the experienced utility
-        self.disappointment += [expected_utilities[product_index] - realized_utilities[product_index]]  # the difference between the expected utility and the experienced utility
-        self.best_choice_made += [1.0*(product_index == best_product)]
+        product_index = self.make_purchase()
         self.purchase_count[product_index] += 1
         self.purchased_products.append(product_index)
         product_review = self.evaluate_product(product_index)
