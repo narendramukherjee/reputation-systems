@@ -149,8 +149,10 @@ class consumer(product):
             if np.random.binomial(1, self.params['tendency_to_rate']):
                 decision = True
             elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
-                decision = ((((product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold_above']) or
-                             ((product_review - self.avg_reviews[-1]) < self.params['rate_decision_threshold_below']))
+                decision = ((((product_review - self.percieved_qualities[-1]) >
+                              self.params['rate_decision_threshold_above']) or
+                             ((product_review - self.percieved_qualities[-1]) <
+                              self.params['rate_decision_threshold_below']))
                             and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
             else:
                 decision = True
