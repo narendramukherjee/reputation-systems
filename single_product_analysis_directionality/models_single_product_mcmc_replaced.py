@@ -300,8 +300,11 @@ class market(consumer):
 
         return a_product_is_reviewed
 
-    def generateTimeseries(self, theta=None, raw=False,
+    def generateTimeseries(self, theta=None, raw=False, fix_population_size=False, population_size=None,
                            get_percieved_qualities_and_avg_reviews=True, do_not_return_df=False): # for threshold_postive_zero, theta not needed
+        assert ((fix_population_size and population_size is not None) or
+                ((not fix_population_size) and population_size is None)), "fix_population_size and population_size " \
+                                                                          "are not properly set."
 
         # conditioned on the fixed_params
         self.set_random_params(theta)  # The random parameter that is the subject of inference is set here.
@@ -311,7 +314,9 @@ class market(consumer):
         self.init_reputation_dynamics()
         timeseries = []
 
-        while len(timeseries) < self.params['total_number_of_reviews']:
+        continue_while = True
+
+        while continue_while:
             a_product_is_reviewed = self.step()
 
             if a_product_is_reviewed:
@@ -330,6 +335,15 @@ class market(consumer):
                         histogram = list(np.array(histogram) / (1.0 * sum(histogram)))
                     kurtosis = st.kurtosis(histogram, fisher=False, bias=True)
                     timeseries.append(kurtosis)
+            if not fix_population_size:
+                continue_while = len(timeseries) < self.params['total_number_of_reviews']
+            else:
+                continue_while = self.customer_count < population_size
+        #
+        print(self.customer_count)
+        print(self.purchase_count)
+        print(len(timeseries))
+
 
         if do_not_return_df:
             df = timeseries
