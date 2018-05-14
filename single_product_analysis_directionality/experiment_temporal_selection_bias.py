@@ -4,7 +4,7 @@ from models_single_product_mcmc_replaced import *
 import settings
 import matplotlib.pyplot as plt
 
-number_of_iterations = 30
+number_of_iterations = 100
 
 if __name__ == '__main__':
     dynamics = market(settings.params)
@@ -15,14 +15,16 @@ if __name__ == '__main__':
 
     print(dynamics.params)
 
-    true_qualities = [3]
-    outside_options = np.linspace(0, 7, 15)
+    true_qualities = [1,2,3,4,5]
+    outside_options = np.linspace(0, 7, 10)
 
     # the differential stat is the difference between the mean of the first ten and the last ten
 
-    differential_stat_avg_review = np.zeros([len(true_qualities), len(outside_options)])
+    differential_stat_ratings = np.zeros([len(true_qualities), len(outside_options)])
 
     differential_stat_perceptions = np.zeros([len(true_qualities), len(outside_options)])
+
+    differential_stat_fits = np.zeros([len(true_qualities), len(outside_options)])
 
     # lower_errors_avg = np.zeros([len(true_qualities), len(outside_options)])
     # upper_errors_avg = np.zeros([len(true_qualities), len(outside_options)])
@@ -30,15 +32,14 @@ if __name__ == '__main__':
     # lower_errors_perception = np.zeros([len(true_qualities), len(outside_options)])
     # upper_errors_perception = np.zeros([len(true_qualities), len(outside_options)])
 
-    errors_avg = np.zeros([len(true_qualities), len(outside_options)])
+    errors_ratings = np.zeros([len(true_qualities), len(outside_options)])
 
     errors_perception = np.zeros([len(true_qualities), len(outside_options)])
 
+    errors_fits = np.zeros([len(true_qualities), len(outside_options)])
+
     # asymmetric_errors_avg = [lower_errors_avg, upper_errors_avg]
     # asymmetric_errors_perception = [lower_errors_perception, upper_errors_perception]
-
-
-
 
     # observed averages loop:
 
@@ -46,205 +47,101 @@ if __name__ == '__main__':
         for i in range(len(outside_options)):
             dynamics.params['true_quality'] = true_qualities[k]
             dynamics.params['value_of_outside_option'] = outside_options[i]
+            dynamics.params['rate_decision_threshold_above'] = 2.0
+            dynamics.params['rate_decision_threshold_below'] = dynamics.params['rate_decision_threshold_above']
             # true_quality = [dynamics.params['true_quality']] * len(perceived_qualities)
             # print(avg_reviews_all_consumers[-10:])
             # print(np.mean(avg_reviews_all_consumers[-10:]))
-            dummy_avg_review_differential_stat  = np.zeros(number_of_iterations)
+            dummy_ratings_differential_stat = np.zeros(number_of_iterations)
 
             dummy_perceptions_differential_stat = np.zeros(number_of_iterations)
+
+            dummy_fits_differential_stat = np.zeros(number_of_iterations)
+
             for j in range(number_of_iterations):
-                _data_, avg_reviews_all_consumers, perceived_qualities = \
-                    dynamics.generateTimeseries(fix_population_size=True,
-                                                population_size=300,
-                                                get_percieved_qualities_and_avg_reviews=True)
-                dummy_avg_review_differential_stat[j] = np.mean(avg_reviews_all_consumers[:15]) - \
-                                                        np.mean(avg_reviews_all_consumers[-15:])
+                ratings, avg_reviews_all_consumers, perceived_qualities, fits = \
+                    dynamics.generateTimeseries(fix_population_size=False,
+                                                raw=True,
+                                                population_size=None,
+                                                get_percieved_qualities_and_avg_reviews=True,
+                                                get_fit_of_customers_who_put_reviews=True,
+                                                do_not_return_df=True)
 
-                dummy_perceptions_differential_stat[j] = np.mean(perceived_qualities[:15]) - \
-                                                         np.mean(perceived_qualities[-15:])
+                dummy_ratings_differential_stat[j] = (np.mean(ratings[:20]) -
+                                                      np.mean(ratings[-20:]))
 
-            # print(dummy_avg_review_differential_stat)
+                dummy_perceptions_differential_stat[j] = (np.mean(perceived_qualities[:20]) -
+                                                          np.mean(perceived_qualities[-20:]))
 
-            differential_stat_avg_review[k][i]  = np.mean(dummy_avg_review_differential_stat)
+                dummy_fits_differential_stat[j] = (np.mean(fits[:20]) -
+                                                   np.mean(fits[-20:]))
+
+            differential_stat_ratings[k][i] = np.mean(dummy_ratings_differential_stat)
 
             differential_stat_perceptions[k][i] = np.mean(dummy_perceptions_differential_stat)
 
-            # lower_errors_avg[k][i] = abs(np.min(dummy_avg_review_differential_stat) -
-            #                              differential_stat_avg_review[k][i])
-            # upper_errors_avg[k][i] = abs(np.max(dummy_avg_review_differential_stat) -
-            #                              differential_stat_avg_review[k][i])
-            #
-            # lower_errors_perception[k][i] = abs(np.min(dummy_perceptions_differential_stat) -
-            #                                     differential_stat_perceptions[k][i])
-            # upper_errors_perception[k][i] = abs(np.max(dummy_perceptions_differential_stat) -
-            #                                     differential_stat_perceptions[k][i])
+            differential_stat_fits[k][i] = np.mean(dummy_fits_differential_stat)
 
-            errors_avg[k][i] = np.std(dummy_avg_review_differential_stat)
+            errors_ratings[k][i] = np.std(dummy_ratings_differential_stat)
 
             errors_perception[k][i] = np.std(dummy_perceptions_differential_stat)
 
-
+            errors_fits[k][i] = np.std(dummy_fits_differential_stat)
 
         print(k)
-        # print('asymmetric_errors_avg', asymmetric_errors_avg)
-        # print('asymmetric_errors_perception', asymmetric_errors_perception)
-        # print('lower_errors_avg', lower_errors_avg)
-        # print('upper_errors_avg', upper_errors_avg)
-        # print('lower_errors_perception', lower_errors_perception)
-        # print('upper_errors_perception', upper_errors_perception)
-        # # asymmetric_errors_avg[k] = [lower_errors_avg[k], upper_errors_avg[k]]
-        # asymmetric_errors_perception[k] = [lower_errors_perception[k], upper_errors_perception[k]]
 
-        # print(asymmetric_errors_avg[0])
-        # print(asymmetric_errors_perception[:][k])
-
-    # asymmetric_errors_avg = [lower_errors_avg, upper_errors_avg]
-    #
-    # asymmetric_errors_perception = [lower_errors_perception, upper_errors_perception]
-
-    # loop to plot averages
+    # loop to plot ratings
     clr = ['b', 'r', 'c', 'g', 'm']
     for k in range(len(true_qualities)):
 
-        plot_labels_avg = []
+        print('differential_stat_ratings',differential_stat_ratings[k])
 
-        # dummy_label_perceived_qualities_plot = plt.errorbar(outside_options, final_perceptions,
-        #                                                     yerr=asymmetric_errors_perception,
-        #                                                     color='r', label='true quality ' + str(true_qualities[k]))
+        ratings_plot = plt.errorbar(outside_options,
+                                    differential_stat_ratings[k],
+                                    yerr=errors_ratings[k],
+                                    color=clr[k],
+                                    label="true quality "+str(true_qualities[k]))
 
-
-        # print("true quality "+str(true_qualities[k]))
-        #
-        # print(clr[k])
-        #
-        # print(lower_errors_avg[k])
-        # print(upper_errors_avg[k])
-        # print(outside_options)
-        # print(final_avg_review)
-
-        dummy_avg_reviews_all_consumers_plot = plt.errorbar(outside_options,
-                                                            differential_stat_avg_review[k],
-                                                            yerr=errors_avg[k],
-                                                            color=clr[k],
-                                                            label="true quality "+str(true_qualities[k]))
-
-        # plot_labels_avg += [dummy_avg_reviews_all_consumers_plot]
-
-        # plt.legend(dummy_avg_reviews_all_consumers_plot, ["true quality "+str(true_qualities[k])])
-
-        # plot_labels_perceptions += [dummy_avg_reviews_all_consumers_plot]
-    # print(plot_labels_avg)
         plt.legend() #plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
         # plt.ylim(1.5, 5)
         plt.xlabel('outside option value')
         plt.ylabel('difference in the first and last 15 points')
-        plt.title('average ratings')
+        plt.title('temporal differences in ratings')
         plt.show()
 
     # loop to plot perceptions
     clr = ['b', 'r', 'c', 'g', 'm']
     for k in range(len(true_qualities)):
-        plot_labels_perceptions = []
 
+        print('differential_stat_perceptions',differential_stat_perceptions[k])
 
-
-        # print(differential_stat_perceptions[k])
-
-        dummy_label_perceived_qualities_plot = plt.errorbar(outside_options,
-                                                            differential_stat_perceptions[k],
-                                                            yerr=errors_perception[k],
-                                                            color=clr[k],
-                                                            label="true quality " + str(true_qualities[k]))
+        perceptions_plot = plt.errorbar(outside_options,
+                                        differential_stat_perceptions[k],
+                                        yerr=errors_perception[k],
+                                        color=clr[k],
+                                        label="true quality " + str(true_qualities[k]))
 
         plt.legend()  # plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
         # plt.ylim(1.5, 5)
         plt.xlabel('outside option value')
         plt.ylabel('difference in the first and last 15 points')
-        plt.title('perception of quality')
+        plt.title('temporal differences in perceptions')
         plt.show()
 
+    clr = ['b', 'r', 'c', 'g', 'm']
+    for k in range(len(true_qualities)):
 
-    # # loop to plot overlay perceptions and averages
-    #
-    # clr = ['b', 'r', 'c', 'g', 'm']
-    # for k in [1,3,5]:
-    #     plot_labels_perceptions = []
-    #
-    #     dummy_label_perceived_qualities_plot = plt.errorbar(outside_options, differential_stat_perceptions[k-1],
-    #                                                         yerr=[lower_errors_perception[k-1],
-    #                                                               upper_errors_perception[k-1]],
-    #                                                         color=clr[k-1],
-    #                                                         label="perceived quality, true quality =" +
-    #                                                               str(true_qualities[k-1]))
-    #
-    #     dummy_label_avg_plot = plt.errorbar(outside_options, differential_stat_avg_review[k - 1],
-    #                                                         yerr=[lower_errors_perception[k-1],
-    #                                                               upper_errors_perception[k-1]],
-    #                                                         color=clr[k-1],linestyle=':',
-    #                                                         label="average rating, true quality =" +
-    #                                                               str(true_qualities[k-1]))
-    #
-    # plt.legend()  # plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
-    # # plt.ylim(1.5,5)
-    # plt.xlabel('outside option value')
-    # plt.ylabel('final perception of quality/average rating')
-    #
-    # plt.show()
+        print('differential_stat_fits',differential_stat_fits[k])
 
+        fits_plot = plt.errorbar(outside_options,
+                                 differential_stat_fits[k],
+                                 yerr=errors_fits[k],
+                                 color=clr[k],
+                                 label="true quality " + str(true_qualities[k]))
 
-    #
-    # for k in range((true_qualities)):
-    #     plot_labels_avg = []
-    #     plot_labels_perceptions = []
-    #     for i in range(len(outside_options)):
-    #         dynamics.params['true_quality'] = true_qualities[k]
-    #         dynamics.params['value_of_outside_option'] = outside_options[i]
-    #         # true_quality = [dynamics.params['true_quality']] * len(perceived_qualities)
-    #         # print(avg_reviews_all_consumers[-10:])
-    #         # print(np.mean(avg_reviews_all_consumers[-10:]))
-    #         dummy_final_avg_review = np.zeros(number_of_iterations)
-    #         dummy_final_perceptions = np.zeros(number_of_iterations)
-    #         for j in range(number_of_iterations):
-    #             _data_, avg_reviews_all_consumers, perceived_qualities = \
-    #                 dynamics.generateTimeseries(get_percieved_qualities_and_avg_reviews=True)
-    #             dummy_final_avg_review[j] = np.mean(avg_reviews_all_consumers[-1:])
-    #             dummy_final_perceptions[j] = np.mean(perceived_qualities[-1:])
-    #
-    #         final_avg_review[i] = np.mean(dummy_final_avg_review)
-    #
-    #         final_perceptions[i] = np.mean(dummy_final_perceptions)
-    #
-    #         lower_errors_avg[i] = abs(np.min(dummy_final_avg_review) - final_avg_review[i])
-    #         upper_errors_avg[i] = abs(np.max(dummy_final_avg_review) - final_avg_review[i])
-    #
-    #         lower_errors_perception[i] = abs(np.min(dummy_final_perceptions) - final_perceptions[i])
-    #         upper_errors_perception[i] = abs(np.max(dummy_final_perceptions) - final_perceptions[i])
-    #
-    #         # print(_data)
-    #         # print(avg_reviews_all_consumers)
-    #         # print(perceived_qualities)
-    #         # print(dynamics.params)
-    #
-    #         # plt.hold(True) the hold use is depreciated the default behavior is
-    #
-    #     # true_qualities, mean_estimated_thetas, yerr=asymmetric_errors)
-    #     # perceived_qualities_plot, = plt.plot(true_qualities,final_perceptions, color='r', label='perceived')
-    #
-    #     asymmetric_errors_avg = [lower_errors_avg, upper_errors_avg]
-    #     asymmetric_errors_perception = [lower_errors_perception, upper_errors_perception]
-    #
-    #     dummy_label_perceived_qualities_plot = plt.errorbar(outside_options, final_perceptions,
-    #                                                         yerr=asymmetric_errors_perception,
-    #                                                         color='r', label='true quality ' + str(true_qualities[k]))
-    #     plot_labels_avg += [dummy_label_perceived_qualities_plot]
-    #
-    #     # true_quality_plot,  = plt.plot(true_qualities,true_qualities, color='g', linestyle=':', label='true')
-    #     dummy_avg_reviews_all_consumers_plot = plt.errorbar(outside_options, final_avg_review,
-    #                                                         yerr=asymmetric_errors_avg,
-    #                                                         color='b', label='true quality ' + str(true_qualities[k]))
-    #
-    #     plot_labels_perceptions += [dummy_avg_reviews_all_consumers_plot]
-    # plt.legend([perceived_qualities_plot, true_quality_plot, avg_reviews_all_consumers_plot],
-    #            ["perceived", "true", "observed_averages"])
-    # plt.xlabel('outside option value')
-    # plt.show()
+        plt.legend()  # plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
+        # plt.ylim(1.5, 5)
+        plt.xlabel('outside option value')
+        plt.ylabel('difference in the first and last 15 points')
+        plt.title('temporal differences in customer fits')
+        plt.show()
