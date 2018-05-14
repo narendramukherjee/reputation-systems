@@ -110,6 +110,8 @@ class consumer(product):
             experienced_quality = self.params['true_quality'] + self.consumer_private_fit
 
             product_review = int(1 + sum(1.0 * (experienced_quality >= np.array(review_levels))))
+            print(experienced_quality)
+            print(np.array(review_levels))
             # print(self.params['consumer_comparison_mode'])
 
         elif self.params['consumer_comparison_mode'] == 'motivation':
@@ -122,7 +124,7 @@ class consumer(product):
                                  self.params['neutral_quality'] + 0.5, self.params['neutral_quality'] + 1.5]
 
             experienced_quality = self.params['true_quality'] + self.consumer_private_fit
-            print('true_quality',self.params['true_quality'])
+            # print('true_quality',self.params['true_quality'])
 
             product_review = int(1 + sum(1.0 * (experienced_quality >= np.array(review_levels))))
 
@@ -152,7 +154,7 @@ class consumer(product):
                 decision = ((((product_review - self.percieved_qualities[-1]) >
                               self.params['rate_decision_threshold_above']) or
                              ((product_review - self.percieved_qualities[-1]) <
-                              self.params['rate_decision_threshold_below']))
+                              (-1.0)*self.params['rate_decision_threshold_below']))
                             and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
             else:
                 decision = True
@@ -163,8 +165,10 @@ class consumer(product):
             if np.random.binomial(1, self.params['tendency_to_rate']):
                 decision = True
             elif self.avg_reviews:  # it is not the first review, avg_reviews is not an empty list
-                decision = ((((product_review - self.avg_reviews[-1]) > self.params['rate_decision_threshold_above']) or
-                             ((product_review - self.avg_reviews[-1]) < self.params['rate_decision_threshold_below']))
+                decision = ((((product_review - self.avg_reviews[-1]) >
+                              self.params['rate_decision_threshold_above']) or
+                             ((product_review - self.avg_reviews[-1]) <
+                              (-1.0)*self.params['rate_decision_threshold_below']))
                             and (np.random.binomial(1, min(3 * self.params['tendency_to_rate'], 1))))
             else:
                 decision = True
@@ -204,18 +208,18 @@ class market(consumer):
             self.params['rate_decision_threshold_above'] = RD.choice([-1.0, 1.0])
             self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
             if 'consumer_comparison_mode' not in self.fixed_params:
-                self.params['consumer_comparison_mode'] = 'BM'
+                self.params['consumer_comparison_mode'] = 'motivation'
         elif self.params['testing_what'] == 'threshold_fixed':
             self.params['rate_decision_threshold_above'] = 1.0
             self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
             if 'consumer_comparison_mode' not in self.fixed_params:
-                self.params['consumer_comparison_mode'] = 'BM'
+                self.params['consumer_comparison_mode'] = 'motivation'
         elif self.params['testing_what'] == 'threshold_directionality':
             assert theta_above is not None, "theta not supplied for threshold_directionality"
             self.params['rate_decision_threshold_above'] = theta_above
             self.params['rate_decision_threshold_below'] = theta_below
             if 'consumer_comparison_mode' not in self.fixed_params:
-                self.params['consumer_comparison_mode'] = 'BM'
+                self.params['consumer_comparison_mode'] = 'motivation'
         else:
             raise Exception("testing_what is undefined!")
 
@@ -226,8 +230,10 @@ class market(consumer):
         self.avg_reviews = []
         self.histogram_reviews = [0] * self.params['number_of_rating_levels']
         self.percieved_qualities = []
-        self.avg_reviews_all_consumers = [] # the avg review that each consumer observes will have the same length as
+        self.avg_reviews_all_consumers = []  # the avg review that each consumer observes will have the same length as
         # the perceived quality
+        self.fit_of_customers_who_put_reviews = []  # records the the fit signal for each consumer
+        # who puts  review, have the same length as the reviews or avg_reviews time series
 
         self.customer_count = 0
         self.purchase_decisions = []
@@ -272,6 +278,8 @@ class market(consumer):
                          np.log(1 - consumer_fit_cdf2[1, :]) * data[4]
         posterior = np.exp(log_prior + log_likelihood)
 
+        # print(np.sum(posterior))
+
         self.percieved_qualities += [np.sum(posterior * infer_quality / np.sum(posterior))]
         self.avg_reviews_all_consumers += [quality_anchor]
 
@@ -292,6 +300,7 @@ class market(consumer):
             self.reviews.append(product_review)
             self.avg_reviews.append(np.mean(self.reviews))
             self.histogram_reviews[product_review - 1] += 1
+            self.fit_of_customers_who_put_reviews.append(self.consumer_private_fit)
             a_product_is_reviewed = True
         else:
             a_product_is_reviewed = False
@@ -300,8 +309,11 @@ class market(consumer):
 
         return a_product_is_reviewed
 
-    def generateTimeseries(self, theta=None, raw=False, fix_population_size=False, population_size=None,
-                           get_percieved_qualities_and_avg_reviews=True, do_not_return_df=False): # for threshold_postive_zero, theta not needed
+    def generateTimeseries(self, theta=None, raw=False,
+                           fix_population_size=False, population_size=None,
+                           get_percieved_qualities_and_avg_reviews=True,
+                           get_fit_of_customers_who_put_reviews=False,
+                           do_not_return_df=False): # for threshold_postive_zero, theta not needed
         assert ((fix_population_size and population_size is not None) or
                 ((not fix_population_size) and population_size is None)), "fix_population_size and population_size " \
                                                                           "are not properly set."
@@ -340,9 +352,9 @@ class market(consumer):
             else:
                 continue_while = self.customer_count < population_size
         #
-        print(self.customer_count)
-        print(self.purchase_count)
-        print(len(timeseries))
+        # print(self.customer_count)
+        # print(self.purchase_count)
+        # print(len(timeseries))
 
 
         if do_not_return_df:
@@ -350,7 +362,10 @@ class market(consumer):
         else:
             df = pd.DataFrame(timeseries)
 
-        if get_percieved_qualities_and_avg_reviews:
+
+        if get_percieved_qualities_and_avg_reviews and get_fit_of_customers_who_put_reviews:
+            return df, self.avg_reviews_all_consumers, self.percieved_qualities,self.fit_of_customers_who_put_reviews
+        elif get_percieved_qualities_and_avg_reviews and not get_fit_of_customers_who_put_reviews:
             return df, self.avg_reviews_all_consumers, self.percieved_qualities
         else:
             return df
