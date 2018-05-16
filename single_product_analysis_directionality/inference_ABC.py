@@ -301,7 +301,6 @@ def basic_abc(model, data, epsilons=[1.0], min_samples=10,verbose=False):
             epsilons)#, weights, tau_squared, eff_sample)
 
 
-
 # error type can be 'MSE' or 'MAE'
 # estimator types can be 'posterior_mean', 'posterior_median', 'MAP'
 class Estimator():
@@ -338,15 +337,15 @@ class Estimator():
                 theta_estimates[i] = np.median(posterior_samples)
         error = 0
         if self.error_type == 'MSE':
-            error = np.sum((selected_theta - true_theta)**2 for selected_theta in theta_estimates)
+            error = np.sum((selected_theta - np.mean(theta_estimates))**2 for selected_theta in theta_estimates)
         elif self.error_type == 'MAE':
-            error = np.sum(abs(selected_theta - true_theta) for selected_theta in theta_estimates)
+            error = np.sum(abs(selected_theta - np.mean(theta_estimates)) for selected_theta in theta_estimates)
         error /= self.n_samples
         return error, theta_estimates
 
     def get_estimates_for_true_thetas(self, true_thetas=[2,4,6], do_plot=True, do_hist=False,
                                       symmetric=False,verbose=True):
-        estimated_thetas = [] # a list of theta_estimated for each true_theta
+        estimated_thetas = []  # a list of theta_estimated for each true_theta
         mean_estimated_thetas = []
         errors = []
         for true_theta in true_thetas:
@@ -371,8 +370,8 @@ class Estimator():
                 upper_errors = []
                 for i in range(len(true_thetas)):
                     theta_estimates = estimated_thetas[i]
-                    lower_errors += [abs(np.min(theta_estimates) - true_thetas[i])]
-                    upper_errors += [abs(np.max(theta_estimates) - - true_thetas[i])]
+                    lower_errors += [abs(np.min(theta_estimates) - mean_estimated_thetas[i])]
+                    upper_errors += [abs(np.max(theta_estimates) - mean_estimated_thetas[i])]
                 asymmetric_errors = [lower_errors, upper_errors]
                 plt.figure()
                 plt.errorbar(true_thetas, mean_estimated_thetas, yerr=asymmetric_errors)
