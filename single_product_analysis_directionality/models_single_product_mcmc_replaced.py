@@ -220,6 +220,12 @@ class market(consumer):
             self.params['rate_decision_threshold_below'] = theta_below
             if 'consumer_comparison_mode' not in self.fixed_params:
                 self.params['consumer_comparison_mode'] = 'motivation'
+        elif self.params['testing_what'] == 'acquisition_bias': # in this mode all customers review irrespective of
+            # whether they buy or decide_to_rate is True or False
+            self.params['rate_decision_threshold_above'] = 0.0
+            self.params['rate_decision_threshold_below'] = self.params['rate_decision_threshold_above']
+            if 'consumer_comparison_mode' not in self.fixed_params:
+                self.params['consumer_comparison_mode'] = 'motivation'
         else:
             raise Exception("testing_what is undefined!")
 
@@ -296,7 +302,14 @@ class market(consumer):
         self.purchase_decisions.append(product_is_purchased)
         product_review = self.evaluate_product()
 
-        if product_is_purchased and self.decide_to_rate(product_review):
+        if self.params['testing_what'] == 'acquisition_bias':  # all customers review irrespective of
+            # whether they buy or decide_to_rate is True or False
+            self.reviews.append(product_review)
+            self.avg_reviews.append(np.mean(self.reviews))
+            self.histogram_reviews[product_review - 1] += 1
+            self.fit_of_customers_who_put_reviews.append(self.consumer_private_fit)
+            a_product_is_reviewed = True
+        elif product_is_purchased and self.decide_to_rate(product_review):
             self.reviews.append(product_review)
             self.avg_reviews.append(np.mean(self.reviews))
             self.histogram_reviews[product_review - 1] += 1
