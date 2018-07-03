@@ -75,7 +75,7 @@ class ABC_GenerativeModel(market):
         # print('synthetic', data)
         return data
 
-    def summary_stats(self, data,number=2,spacing=10):
+    def summary_stats(self, data,number=3,spacing=5):
         """
         Sub-classable method for computing summary statistics.
         This method should return an array-like iterable of summary statistics
