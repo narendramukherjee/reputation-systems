@@ -5,6 +5,8 @@
 # The generative model settings
 
 import pickle
+import os
+import pandas as pd
 
 
 # tracked_product_ID = 'B0067PLM5E' # Asus
@@ -14,11 +16,11 @@ tracked_product_ID = 'B002C7481G'  # Apple
 # tracked_product_ID = 'B005B9G79I'  # Vizio
 
 
+current_working_directory = os.getcwd()
+
 number_of_rating_levels = 5
 
 observed_params = pickle.load(open('./data/'+'ratio_params_'+tracked_product_ID+'.pkl', 'rb'))
-
-number_of_summaries = 2
 
 print(observed_params)
 
@@ -42,13 +44,19 @@ def process_observed_params(observed_params, tracked_product_ID):
         params['population_beta'][i] = observed_params[i]
 
     params['true_quality'] = observed_params['true_qualities'][params['product_tracked']]
-    params['total_number_of_reviews'] = 100
+
+    observed_timeseries = pd.read_csv(current_working_directory + '/data/' + tracked_product_ID +
+                                      '_time_series.txt', sep='\t')
+
+    params['total_number_of_reviews'] = len(list(observed_timeseries['Rating']))
+
     # params['input_type'] =  'kurtosis'
     # params['input_type'] = 'averages'
     params['input_type'] = 'histograms'
     # 'input_histograms_are_normalized': True,
     params['number_of_rating_levels'] = number_of_rating_levels
     params['consumer_fit_std'] = observed_params['consumer_fit_std'][0]
+
     print(params)
     return params
 
@@ -76,6 +84,9 @@ else:
     number_of_features = 1  # each point in the input time series is an average review
     assert number_of_features == 1, 'wrong number of features'
 
+number_of_summaries = 4
+
+space_between_summaries = 20
 
 # These are neural network settings:
 #
