@@ -5,6 +5,12 @@ import settings
 import numpy as np
 from models_single_product_mcmc_replaced import market
 import copy
+
+
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+
+
 random.seed()
 
 SENTINEL = object()
@@ -48,7 +54,7 @@ class ABC_GenerativeModel(market):
                 "the length of epsilon does not match number_of_summaries"
         elif len(epsilons) == 1:
             epsilons = [epsilons[0]]*settings.number_of_summaries
-        print('epsilons:', epsilons)
+        # print('epsilons:', epsilons)
         self.epsilons = epsilons
 
     def draw_theta(self):
@@ -75,7 +81,7 @@ class ABC_GenerativeModel(market):
         # print('synthetic', data)
         return data
 
-    def summary_stats(self, data,number=3,spacing=5):
+    def summary_stats(self, data,number=settings.number_of_summaries,spacing=settings.space_between_summaries):
         """
         Sub-classable method for computing summary statistics.
         This method should return an array-like iterable of summary statistics
@@ -123,7 +129,6 @@ class ABC_GenerativeModel(market):
             for i in range(1,len(raw_timeseries)+1):
                 raw_averages.append(np.mean(raw_timeseries[:i]))
 
-
             print('raw_averages' , raw_averages)
 
             conditioned_timeseries = [raw_timeseries[0]]
@@ -159,9 +164,6 @@ class ABC_GenerativeModel(market):
         output_histograms_time_series = copy.deepcopy(histogram_timeseries)
         # print('output_histograms_time_series in process raw time series', output_histograms_time_series)
         return output_histograms_time_series
-
-
-
 
 ################################################################################
 #########################    ABC Algorithms   ##################################
@@ -235,11 +237,12 @@ def basic_abc(model, data, epsilons=[1.0], min_samples=10,verbose=False):
     --------
     Forth coming.
     """
-
     posterior, rejected, accepted_distances = [], [], []
     trial_count, accepted_count = 0, 0
+    print(data)
 
     data_summary_stats = model.summary_stats(data)
+    # print(data_summary_stats)
     model.set_epsilons(epsilons)
 
     while accepted_count < min_samples:
@@ -254,7 +257,7 @@ def basic_abc(model, data, epsilons=[1.0], min_samples=10,verbose=False):
         #     if np.isscalar(theta) == True:
         #         theta = [theta]
         #
-        #
+        #   
         # else:
         #     theta = model.draw_theta()
 
@@ -300,7 +303,6 @@ def basic_abc(model, data, epsilons=[1.0], min_samples=10,verbose=False):
             accepted_count, trial_count,
             epsilons)#, weights, tau_squared, eff_sample)
 
-
 # error type can be 'MSE' or 'MAE'
 # estimator types can be 'posterior_mean', 'posterior_median', 'MAP'
 class Estimator():
@@ -316,7 +318,11 @@ class Estimator():
         self.epsilons = epsilons
 
     def get_estimates(self, true_theta, bin_size=5, do_hist=False):
-        theta_estimates = np.zeros(self.n_samples)
+        if self.estimator_type != 'All':
+            theta_estimates = np.zeros(self.n_samples)
+        elif self.estimator_type == 'All':
+            theta_estimates = np.zeros([3,self.n_samples])
+
         for i in range(self.n_samples):
             data = self.model.generate_data(true_theta)
             (posterior_samples, _, _, _, _) = basic_abc(self.model, data, self.epsilons, self.n_posterior_samples)
@@ -333,50 +339,141 @@ class Estimator():
                 hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
                 j = np.argmax(hist)
                 theta_estimates[i] = (bin_edges[j] + bin_edges[j+1]) / 2.0
+                # print(bin_edges)
             elif self.estimator_type == 'posterior_median':
                 theta_estimates[i] = np.median(posterior_samples)
-        error = 0
-        if self.error_type == 'MSE':
-            error = np.sum((selected_theta - np.mean(theta_estimates))**2 for selected_theta in theta_estimates)
-        elif self.error_type == 'MAE':
-            error = np.sum(abs(selected_theta - np.mean(theta_estimates)) for selected_theta in theta_estimates)
-        error /= self.n_samples
+            elif self.estimator_type == 'All': # record all estimators in the order mean, median, MAP
+                theta_estimates[0,i] = posterior_samples.mean()
+                theta_estimates[1,i] = np.median(posterior_samples)
+                hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+                j = np.argmax(hist)
+                # print(bin_edges)
+                theta_estimates[2,i] = (bin_edges[j] + bin_edges[j + 1]) / 2.0
+
+        if self.estimator_type != 'All':
+            error = 0
+            if self.error_type == 'MSE':
+                error = np.sum((selected_theta - np.mean(theta_estimates))**2 for selected_theta in theta_estimates)
+            elif self.error_type == 'MAE':
+                error = np.sum(abs(selected_theta - np.mean(theta_estimates)) for selected_theta in theta_estimates)
+            error /= self.n_samples
+        elif self.estimator_type == 'All': # record all errors in the order mean, median, MAP
+            error = np.zeros(3)
+            for j in range(3):
+                if self.error_type == 'MSE':
+                    error[j] = np.sum((selected_theta - np.mean(theta_estimates[j])) ** 2
+                                      for selected_theta in theta_estimates[j])
+                elif self.error_type == 'MAE':
+                    error[j] = np.sum(abs(selected_theta - np.mean(theta_estimates[j]))
+                                   for selected_theta in theta_estimates[j])
+                error[j] /= self.n_samples
         return error, theta_estimates
 
     def get_estimates_for_true_thetas(self, true_thetas=[2,4,6], do_plot=True, do_hist=False,
                                       symmetric=False,verbose=True):
-        estimated_thetas = []  # a list of theta_estimated for each true_theta
-        mean_estimated_thetas = []
-        errors = []
-        for true_theta in true_thetas:
-            if verbose:
-                print('true theta:', true_theta)
-            theta_error, theta_estimates = self.get_estimates(true_theta, do_hist=do_hist)
-            estimated_thetas += [theta_estimates]
-            mean_estimated_thetas += [np.mean(theta_estimates)]
-            errors += [theta_error]
-            if verbose:
-                print('theta estimates:', theta_estimates)
-        if do_plot:
+        if self.estimator_type != 'All':
+            estimated_thetas = []  # a list of theta_estimated for each true_theta
+            mean_estimated_thetas = []
+            errors = []
+            for true_theta in true_thetas:
+                if verbose:
+                    print('true theta:', true_theta)
+                theta_error, theta_estimates = self.get_estimates(true_theta, do_hist=do_hist)
+                estimated_thetas += [theta_estimates]
+                mean_estimated_thetas += [np.mean(theta_estimates)]
+                errors += [theta_error]
+                if verbose:
+                    print('theta estimates:', theta_estimates)
+        elif self.estimator_type == 'All':
+            #### continue form here!
+            mean_estimated_thetas = np.zeros([3,len(true_thetas)]) # a list of theta_estimated for each true_theta
             if symmetric:
-                plt.figure()
-                plt.errorbar(true_thetas, mean_estimated_thetas, yerr=errors)
-                plt.title(self.estimator_type + ' performance ')
-                plt.xlabel('true theta')
-                plt.ylabel(self.estimator_type)
-                plt.show()
-            else: # not symmetric
-                lower_errors = []
-                upper_errors = []
-                for i in range(len(true_thetas)):
-                    theta_estimates = estimated_thetas[i]
-                    lower_errors += [abs(np.min(theta_estimates) - mean_estimated_thetas[i])]
-                    upper_errors += [abs(np.max(theta_estimates) - mean_estimated_thetas[i])]
-                asymmetric_errors = [lower_errors, upper_errors]
-                plt.figure()
-                plt.errorbar(true_thetas, mean_estimated_thetas, yerr=asymmetric_errors)
-                plt.title(self.estimator_type + 'performance')
-                plt.xlabel('true theta')
-                plt.ylabel(self.estimator_type)
-                plt.show()
+                errors = np.zeros([3,len(true_thetas)])
+                for ii in range(len(true_thetas)):
+                        if verbose:
+                            print('true theta:', true_thetas[ii])
+                        theta_error, theta_estimates = self.get_estimates(true_thetas[ii], do_hist=do_hist)
+                        for jj in range(3):
+                            mean_estimated_thetas[jj,ii] = np.mean(theta_estimates[jj])
+                            errors[jj,ii] = theta_error[jj]
+                        if verbose:
+                            print('theta estimates:', theta_estimates)
+            elif not symmetric:
+                lower_errors = np.zeros([3,len(true_thetas)])
+                upper_errors = np.zeros([3,len(true_thetas)])
+                asymmetric_errors = np.zeros([3,2,len(true_thetas)])
+                for ii in range(len(true_thetas)):
+                    if verbose:
+                        print('true theta:', true_thetas[ii])
+                    theta_error, theta_estimates = self.get_estimates(true_thetas[ii], do_hist=do_hist)
+                    for jj in range(3):
+                        mean_estimated_thetas[jj, ii] = np.mean(theta_estimates[jj])
+                        lower_errors[jj, ii] = abs(np.min(theta_estimates[jj])
+                                                   - mean_estimated_thetas[jj,ii])
+                        upper_errors[jj, ii] = abs(np.max(theta_estimates[jj])
+                                                   - mean_estimated_thetas[jj,ii])
+                        print(asymmetric_errors[jj, 0, ii])
+                        print(asymmetric_errors[jj, 1, ii])
+                        print(lower_errors[jj,ii], upper_errors[jj,ii])
+                        asymmetric_errors[jj, 0, ii] = lower_errors[jj,ii]
+                        asymmetric_errors[jj, 1, ii] = upper_errors[jj,ii]
+                        print(asymmetric_errors)
+                    if verbose:
+                        print('theta estimates:', theta_estimates)
+
+        if do_plot:
+            if self.estimator_type != 'All':
+                if symmetric:
+                    plt.figure()
+                    plt.errorbar(true_thetas, mean_estimated_thetas, yerr=errors)
+                    plt.title(self.estimator_type + ' performance ')
+                    plt.xlabel('true theta')
+                    plt.ylabel(self.estimator_type)
+                    plt.show()
+                else:  # not symmetric
+                    lower_errors = []
+                    upper_errors = []
+                    for i in range(len(true_thetas)):
+                        theta_estimates = estimated_thetas[i]
+                        lower_errors += [abs(np.min(theta_estimates) - mean_estimated_thetas[i])]
+                        upper_errors += [abs(np.max(theta_estimates) - mean_estimated_thetas[i])]
+                    asymmetric_errors = [lower_errors, upper_errors]
+                    plt.figure()
+                    plt.plot(true_thetas, true_thetas, color='g', linestyle=':', label='true $\\theta$')
+                    plt.errorbar(true_thetas, mean_estimated_thetas, yerr=asymmetric_errors, color='r', label='MAP')
+                    plt.title(self.estimator_type + ' estimation performance')
+                    plt.xlabel('true value $(\\theta)$')
+                    plt.ylabel('estimated $(\\hat{\\theta})$')
+                    plt.show()
+            elif self.estimator_type == 'All':
+                if symmetric:
+                    print(mean_estimated_thetas[0])
+                    plt.figure()
+                    plt.errorbar(true_thetas, mean_estimated_thetas[0], yerr=errors[0],
+                                 label='posterior mean', color='r')
+                    plt.errorbar(true_thetas, mean_estimated_thetas[1], yerr=errors[1],
+                                 label='posterior median', color='g')
+                    plt.errorbar(true_thetas, mean_estimated_thetas[2], yerr=errors[2],
+                                 label='MAP', color='b')
+                    plt.plot(true_thetas, true_thetas, linestyle=':', label='true $\\theta$', color='c')
+                    plt.title('estimation performance ')
+                    plt.xlabel('true value $(\\theta)$')
+                    plt.ylabel('estimated $(\\hat{\\theta})$')
+                    plt.legend()
+                    plt.show()
+                elif not symmetric:  # not symmetric
+
+                    plt.figure()
+                    plt.errorbar(true_thetas, mean_estimated_thetas[0], yerr=asymmetric_errors[0],
+                                 label='posterior mean', color='r')
+                    plt.errorbar(true_thetas, mean_estimated_thetas[1], yerr=asymmetric_errors[1],
+                                 label='posterior median', color='g')
+                    plt.errorbar(true_thetas, mean_estimated_thetas[2], yerr=asymmetric_errors[2],
+                                 label='MAP', color='b')
+                    plt.plot(true_thetas, true_thetas, color='c', linestyle=':', label='true $\\theta$')
+                    plt.title('estimation performance ')
+                    plt.xlabel('true value $(\\theta)$')
+                    plt.ylabel('estimated $(\\hat{\\theta})$')
+                    plt.legend()
+                    plt.show()
 
