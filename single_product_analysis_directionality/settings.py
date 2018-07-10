@@ -84,9 +84,11 @@ else:
     number_of_features = 1  # each point in the input time series is an average review
     assert number_of_features == 1, 'wrong number of features'
 
-number_of_summaries = 4
+number_of_summaries = 7
 
-space_between_summaries = 20
+space_between_summaries = 50
+
+do_plots = True
 
 # These are neural network settings:
 #
