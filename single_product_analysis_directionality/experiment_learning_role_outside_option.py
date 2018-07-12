@@ -87,6 +87,7 @@ if __name__ == '__main__':
 
     asymmetric_errors_perception = [lower_errors_perception, upper_errors_perception]
 
+    print(dynamics.params)
 
 
 
@@ -137,7 +138,7 @@ if __name__ == '__main__':
                                                             label="true quality " + str(true_qualities[k]))
 
     plt.legend()  # plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
-    plt.ylim(1.5, 5)
+    plt.ylim(0.5, 6)
     plt.xlabel('outside option value')
     plt.ylabel('final perception of quality')
     plt.show()
@@ -160,7 +161,7 @@ if __name__ == '__main__':
                                                             label="average rating, true quality =" + str(true_qualities[k-1]))
 
     plt.legend()  # plot_labels_avg,["true quality 1","true quality 2","true quality 3","true quality 4","true quality 5"]
-    plt.ylim(1.5,5)
+    plt.ylim(0.5,6)
     plt.xlabel('outside option value')
     plt.ylabel('final perception of quality/average rating')
 

@@ -23,11 +23,12 @@ if __name__ == '__main__':
     # all_ratings = list(raw_timeseries['Rating'])
     # processed_timeseries = gen_model.process_raw_timeseries()
 
-    print(data)
+    print(len(data))
 
     (posterior, distances,
      accepted_count, trial_count,
-     epsilon) = basic_abc(gen_model, data, epsilon=0.02, min_samples=10)
+     epsilon) = basic_abc(gen_model, data, epsilons=[0.05], min_samples=20)
+
     print('posterior', posterior)
     print('distances', distances)
     print('accepted_count', accepted_count)

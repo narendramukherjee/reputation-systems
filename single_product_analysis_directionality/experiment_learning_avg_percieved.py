@@ -14,7 +14,7 @@ if __name__ == '__main__':
     dynamics.params['total_number_of_reviews'] = 200
 
     print(dynamics.params)
-    true_qualities = np.linspace(1, 7, 7)
+    true_qualities = np.linspace(1, 5, 10)
     final_avg_review = np.zeros(true_qualities.shape)
     final_perceptions = np.zeros(true_qualities.shape)
 
@@ -75,4 +75,5 @@ if __name__ == '__main__':
                                                   color='b', label='observed_averages')
     plt.legend([perceived_qualities_plot,true_quality_plot,avg_reviews_all_consumers_plot],
                ["perceived", "true", "observed_averages"])
+    plt.xlabel('true quality')
     plt.show()
