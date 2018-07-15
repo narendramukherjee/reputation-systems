@@ -4,11 +4,9 @@
 # faces, followed by a decision to leave a review or not.
 # The parameters are the parameters of a single product.
 
-
-import numpy as np
+import settings
 import random as RD
 import scipy.stats as st
-import pandas as pd
 import copy
 
 

@@ -7,6 +7,7 @@
 import pickle
 import os
 import pandas as pd
+import numpy as np
 
 
 # tracked_product_ID = 'B0067PLM5E' # Asus
@@ -24,6 +25,19 @@ observed_params = pickle.load(open('./data/'+'ratio_params_'+tracked_product_ID+
 
 print(observed_params)
 
+def combine(list_of_names,output_name):
+    original = pickle.load(open('./data/' + list_of_names[0] + '.pkl', 'rb'))
+    for ii in range(1, len(list_of_names)):
+        additional = pickle.load(open('./data/' + list_of_names[ii] + '.pkl', 'rb'))
+        print(original)
+        print(additional)
+        original = np.concatenate((original,additional),axis=1)
+        print(original)
+    pickle.dump(original, open('./data/'+output_name+'.pkl', 'wb'))
+
+
+combine(['errors_50_75','errors_100_125'],'errors')
+combine(['mean_estimated_thetas_50_75','mean_estimated_thetas_100_125'],'mean_estimated_thetas')
 
 def process_observed_params(observed_params, tracked_product_ID):
     params = dict()
