@@ -11,7 +11,7 @@ if settings.do_plots:
 import random
 
 import numpy as np
-from models_single_product_mcmc_replaced import market
+from models import market
 import copy
 import pickle
 import pandas as pd

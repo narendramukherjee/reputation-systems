@@ -11,8 +11,8 @@ import numpy as np
 
 
 # tracked_product_ID = 'B0067PLM5E' # Asus
-tracked_product_ID = 'B002C7481G'  # Apple
-# tracked_product_ID = 'B0055D66V4'  # HP
+# tracked_product_ID = 'B002C7481G'  # Apple
+tracked_product_ID = 'B0055D66V4'  # HP
 # tracked_product_ID = 'B004PGMFG2'  # Le Pan
 # tracked_product_ID = 'B005B9G79I'  # Vizio
 
@@ -77,6 +77,15 @@ def process_observed_params(observed_params, tracked_product_ID):
 
 params = process_observed_params(observed_params, tracked_product_ID)
 
+observed_timeseries = pd.read_csv('./data/' + tracked_product_ID +
+                                              '_time_series.txt', sep='\t')
+
+data = list(observed_timeseries['Rating'])
+# all_ratings = list(raw_timeseries['Rating'])
+# processed_timeseries = gen_model.process_raw_timeseries()
+
+print(len(data))
+
 # params = {'product_tracked': 0,
 #           'prices': [10, 11, 12, 13],
 #           'product_features': [1, 2, 3, 4],
@@ -100,7 +109,7 @@ else:
 
 number_of_summaries = 7
 
-space_between_summaries = 50
+space_between_summaries = len(data)//7
 
 do_plots = True
 

@@ -6,6 +6,7 @@
 
 import settings
 import random as RD
+import numpy as np
 import scipy.stats as st
 import copy
 
@@ -249,8 +250,6 @@ class market(consumer):
         else:
             quality_anchor = self.params['neutral_quality']
 
-
-
         observed_histograms = self.histogram_reviews
 
         # infer_quality = mc.Normal('infer_quality', mu=self.params['neutral_quality'],
@@ -285,6 +284,7 @@ class market(consumer):
         # print(np.sum(posterior))
 
         self.percieved_qualities += [np.sum(posterior * infer_quality / np.sum(posterior))]
+        assert not np.isnan(self.percieved_qualities[-1]), "perceived quality is nan!"
         self.avg_reviews_all_consumers += [quality_anchor]
 
     def step(self):
@@ -366,7 +366,6 @@ class market(consumer):
         # print(self.customer_count)
         # print(self.purchase_count)
         # print(len(timeseries))
-
 
         if do_not_return_df:
             df = timeseries

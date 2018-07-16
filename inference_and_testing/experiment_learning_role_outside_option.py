@@ -1,8 +1,9 @@
 # experiment on learning the true quality from perceived signal and avg reviews
 
-from models_single_product_mcmc_replaced import *
+from models import *
 import settings
-import matplotlib.pyplot as plt
+if settings.do_plots:
+    import matplotlib.pyplot as plt
 
 number_of_iterations = 6
 

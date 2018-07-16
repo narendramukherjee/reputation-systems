@@ -20,15 +20,19 @@ if __name__ == '__main__':
     #                    estimator_type='posterior_mean', bin_size=10)
 
     # note: epsilons should be ABC
-    estimator = Estimator(gen_model, epsilons=[0.05], n_posterior_samples=2, n_samples=1,
+    estimator = Estimator(gen_model, epsilons=[10], n_posterior_samples=20, n_samples=1,
                  estimator_type='All', bin_size=10, error_type='MSE')
 
-    estimator.get_estimates_for_true_thetas(true_thetas, do_plot=settings.do_plots, symmetric=True,
-                                            verbose=True, do_hist=False,
-                                            compute_estimates=False,
-                                            save_estimates=False,
-                                            load_estimates=True)
-
+    # estimator.get_estimates_for_true_thetas(true_thetas, do_plot=settings.do_plots, symmetric=True,
+    #                                         verbose=True, do_hist=False,
+    #                                         compute_estimates=False,
+    #                                         save_estimates=False,
+    #                                         load_estimates=True)
+    estimator.get_estimates_for_observed_data(observed_data=settings.data,
+                                              do_hist=True,
+                                              compute_posterior_samples=True,
+                                              save_posterior_samples=True,
+                                              load_posterior_samples=False)
     # print('error:', error)
     # print('theta_estimates (posterior means):', theta_estimates)
 
