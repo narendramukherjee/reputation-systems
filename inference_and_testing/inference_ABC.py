@@ -14,6 +14,8 @@ import numpy as np
 from models_single_product_mcmc_replaced import market
 import copy
 import pickle
+import pandas as pd
+import numpy as np
 
 
 random.seed()
@@ -322,7 +324,7 @@ class Estimator():
         self.error_type = error_type  # error type can be MSE or MAE
         self.epsilons = epsilons
 
-    def get_estimates(self, true_theta, bin_size=5, do_hist=False):
+    def get_estimates(self, true_theta, do_hist=False):
         if self.estimator_type != 'All':
             theta_estimates = np.zeros(self.n_samples)
         elif self.estimator_type == 'All':
@@ -341,7 +343,7 @@ class Estimator():
             if self.estimator_type == 'posterior_mean':
                 theta_estimates[i] = posterior_samples.mean()
             elif self.estimator_type == 'MAP':
-                hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+                hist, bin_edges = np.histogram(posterior_samples, bins=self.bin_size)
                 j = np.argmax(hist)
                 theta_estimates[i] = (bin_edges[j] + bin_edges[j+1]) / 2.0
                 # print(bin_edges)
@@ -350,7 +352,7 @@ class Estimator():
             elif self.estimator_type == 'All': # record all estimators in the order mean, median, MAP
                 theta_estimates[0,i] = posterior_samples.mean()
                 theta_estimates[1,i] = np.median(posterior_samples)
-                hist, bin_edges = np.histogram(posterior_samples, bins=bin_size)
+                hist, bin_edges = np.histogram(posterior_samples, bins=self.bin_size)
                 j = np.argmax(hist)
                 # print(bin_edges)
                 theta_estimates[2,i] = (bin_edges[j] + bin_edges[j + 1]) / 2.0
@@ -509,3 +511,61 @@ class Estimator():
                     plt.legend()
                     plt.show()
 
+    # gen_model_params=settings.params,
+    # conditioninal_posterior =False,
+    # direction_of_conditioning=None,
+    def get_estimates_for_observed_data(self,
+                                        observed_data,
+                                        do_hist=True,
+                                        verbose=True,
+                                        compute_posterior_samples=True,
+                                        save_posterior_samples=True,
+                                        load_posterior_samples=False):
+
+        assert (not save_posterior_samples) or compute_posterior_samples, \
+            "cannot save posterior samples without computing them!"
+
+        if compute_posterior_samples:
+            # gen_model = ABC_GenerativeModel(params=gen_model_params,
+            #                                 conditioning=conditioninal_posterior,
+            #                                 direction=direction_of_conditioning)
+            # conditioning = False, direction = None
+            # conditioning=True, direction='above'
+
+
+            # observed_timeseries = pd.read_csv('./data/' + tracked_product_ID +
+            #                                   '_time_series.txt', sep='\t')
+            #
+            # data = list(observed_timeseries['Rating'])
+            # # all_ratings = list(raw_timeseries['Rating'])
+            # # processed_timeseries = gen_model.process_raw_timeseries()
+            #
+            # print(len(data))
+
+            (posterior_samples, distances,
+             accepted_count, trial_count,
+             epsilon) = basic_abc(self.model, observed_data, self.epsilons, self.n_posterior_samples)
+            if verbose:
+                print('posterior samples', posterior_samples)
+                print('distances', distances)
+                print('accepted_count', accepted_count)
+                print('trial_count', trial_count)
+                print('epsilon', epsilon)
+                print('posterior mean:', np.mean(posterior_samples))
+                print('posterior median:', np.median(posterior_samples))
+                hist, bin_edges = np.histogram(posterior_samples, bins=self.bin_size)
+                j = np.argmax(hist)
+                MAP = (bin_edges[j] + bin_edges[j + 1]) / 2.0
+                print('MAP:', MAP)
+        #
+            if save_posterior_samples:
+                pickle.dump(posterior_samples, open('./data/'+settings.tracked_product_ID
+                                                    +'_posterior_samples.pkl', 'wb'))
+        if do_hist:
+            if load_posterior_samples:
+                posterior_samples = pickle.load(open('./data/'+settings.tracked_product_ID
+                                                     +'_posterior_samples.pkl', 'rb'))
+            plt.figure()
+            plt.hist(posterior_samples)
+            plt.title('Posterior Samples for ' + settings.tracked_product_ID)
+            plt.show()
