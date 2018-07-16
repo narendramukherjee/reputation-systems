@@ -1,9 +1,7 @@
 .dropbox
 .idea/
-
-single_product_analysis/data/
-single_product_analysis_directionality/data/
-
+data_*/
+inference_and_testing/data/
 #slurm files
 *.out
 *.slurm
