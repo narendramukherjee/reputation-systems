@@ -11,10 +11,10 @@ import numpy as np
 
 
 # tracked_product_ID = 'B0067PLM5E' # Asus
-tracked_product_ID = 'B002C7481G'  # Apple
+# tracked_product_ID = 'B002C7481G'  # Apple
 # tracked_product_ID = 'B0055D66V4'  # HP
 # tracked_product_ID = 'B004PGMFG2'  # Le Pan
-# tracked_product_ID = 'B005B9G79I'  # Vizio
+tracked_product_ID = 'B005B9G79I'  # Vizio
 
 
 current_working_directory = os.getcwd()
@@ -35,10 +35,10 @@ def combine(list_of_names,output_name):
         print(original)
     pickle.dump(original, open('./data/'+output_name+'.pkl', 'wb'))
 
-
-combine(['errors_50_75','errors_100_125','errors_150_175'],'errors')
-combine(['mean_estimated_thetas_50_75','mean_estimated_thetas_100_125',
-         'mean_estimated_thetas_150_175'],'mean_estimated_thetas')
+#
+# combine(['errors_50_75','errors_100_125','errors_150_175'],'errors')
+# combine(['mean_estimated_thetas_50_75','mean_estimated_thetas_100_125',
+#          'mean_estimated_thetas_150_175'],'mean_estimated_thetas')
 
 def process_observed_params(observed_params, tracked_product_ID):
     params = dict()
@@ -112,7 +112,7 @@ number_of_summaries = 7
 
 space_between_summaries = len(data)//7
 
-do_plots = True
+do_plots = False
 
 # These are neural network settings:
 #
