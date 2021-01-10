@@ -62,7 +62,7 @@ class BaseSimulator:
             )
         self.simulations = np.array(simulations)
 
-    def save_simulations(self, filename: Path) -> None:
+    def save_simulations(self, dirname: Path) -> None:
         simulation_dict = {
             "simulation_parameters": self.simulation_parameters,
             "simulations": self.simulations,
@@ -70,11 +70,11 @@ class BaseSimulator:
             "review_prior": self.review_prior,
             "other_params": self.params,
         }
-        with open(filename, "wb") as f:
+        with open(dirname / (self.__class__.__name__ + ".pkl"), "wb") as f:
             pickle.dump(simulation_dict, f)
 
-    def load_simulator(self, filename: Path) -> None:
-        with open(filename, "rb") as f:
+    def load_simulator(self, dirname: Path) -> None:
+        with open(dirname / (self.__class__.__name__ + ".pkl"), "rb") as f:
             simulation_dict = pickle.load(f)
         for key in simulation_dict:
             setattr(self, key, simulation_dict[key])
@@ -170,7 +170,7 @@ class SingleRhoSimulator(BaseSimulator):
 
 
 class DoubleRhoSimulator(SingleRhoSimulator):
-    def __init__(self, params, **kwargs):
+    def __init__(self, params):
         super(DoubleRhoSimulator, self).__init__(params)
 
     def generate_simulation_parameters(self, num_simulations) -> dict:
