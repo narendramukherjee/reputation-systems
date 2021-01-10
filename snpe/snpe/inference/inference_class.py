@@ -57,7 +57,7 @@ class BaseInference:
 
     def save_inference(self, dirname: Path) -> None:
         inference_dict = {
-            "simulator": self.simulator_type,
+            "simulator_type": self.simulator_type,
             "parameter_prior": self.parameter_prior,
             "device": self.device,
             "posterior": self.posterior,
