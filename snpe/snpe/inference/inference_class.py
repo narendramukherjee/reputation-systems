@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import sbi
+import sbi.inference as sbi_inference
 import sklearn
 import torch
 from snpe.simulations import simulator_class
@@ -36,9 +37,9 @@ class BaseInference:
     def infer_snpe_posterior(self, batch_size: int = 50) -> None:
         # Convert the simulations and parameters to pytorch tensors to use with sbi
         simulations = torch.from_numpy(self.simulator.simulations).type(torch.FloatTensor)
-        parameters = torch.from_numpy(self.simulator.simulation_parameters).type(torch.FloatTensor)
+        parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
 
-        inference = sbi.inference.SNPE(self.parameter_prior, device=self.device, show_progress_bars=True)
+        inference = sbi_inference.SNPE(self.parameter_prior, device=self.device, show_progress_bars=True)
         density_estimator = inference.append_simulations(parameters, simulations).train(
             training_batch_size=batch_size, show_train_summary=True
         )

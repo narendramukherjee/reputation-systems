@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 from joblib import Parallel, delayed
 from snpe.utils.tqdm_utils import tqdm_joblib
+from tqdm import tqdm
 
 
 class BaseSimulator:

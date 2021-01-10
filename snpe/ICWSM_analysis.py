@@ -1,11 +1,25 @@
+import multiprocessing as mp
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sbi
+import sbi.utils as sbi_utils
+import seaborn as sns
 import torch
+from joblib import Parallel, delayed
+from matplotlib.lines import Line2D
 from snpe.inference import inference_class
 from snpe.simulations import simulator_class
+from snpe.utils.tqdm_utils import tqdm_joblib
+from tqdm import tqdm
+
+# Set plotting parameters
+sns.set(style="white", context="talk", font_scale=3.5)
+sns.set_color_codes(palette='colorblind')
+sns.set_style("ticks", {"axes.linewidth": 2.0})
+plt.ion()
 
 ARTIFACT_PATH = Path("./artifacts/ICWSM")
 
@@ -18,7 +32,7 @@ def generate_and_save_simulations(num_simulations: int, review_prior: np.array, 
 
 
 def infer_and_save_posterior(simulator_type: str) -> None:
-    parameter_prior = sbi.utils.BoxUniform(
+    parameter_prior = sbi_utils.BoxUniform(
         low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
     )
     inferrer = inference_class.BaseInference(parameter_prior=parameter_prior, device="cpu")
@@ -37,6 +51,18 @@ def sample_posterior_with_observed(observed_histograms: np.array, num_samples: i
     inferrer.load_inference(dirname=ARTIFACT_PATH)
     posterior_samples = inferrer.get_posterior_samples(observed_histograms, num_samples=num_samples)
     return posterior_samples
+
+
+def plot_simulated_histogram_variety_test(parameters: np.array) -> None:
+    params = {"review_prior": np.ones(5), "tendency_to_rate": 0.05}
+    simulator = simulator_class.DoubleRhoSimulator(params)
+
+    with tqdm_joblib(tqdm(desc="Simulations", total=parameters.shape[0])) as progress_bar:
+        simulations = Parallel(n_jobs=mp.cpu_count())(
+                delayed(simulator.simulate_review_histogram)(i, parameters) for i in range(parameters.shape[0])
+            )
+    fig = plt.figure()
+    # Normal distribution of reviews
 
 
 def main():
@@ -70,7 +96,6 @@ def main():
     # Get samples from the posteriors of all products, using their observed review histograms
     observed_histograms = np.array(ratings.iloc[:, 1:], dtype=np.float64)
     posterior_samples = sample_posterior_with_observed(observed_histograms, 5_000, "double_rho")
-
 
 
 if __name__ == "__main__":
