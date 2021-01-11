@@ -22,14 +22,12 @@ class BaseInference:
         # as they will be overridden by those of the loaded simulator
         params = {"review_prior": np.ones(5), "tendency_to_rate": 0.05}
         self.simulator_type = simulator_type
-        if self.simulator_type == "base":
-            simulator = simulator_class.BaseSimulator(params)
-        elif self.simulator_type == "single_rho":
+        if self.simulator_type == "single_rho":
             simulator = simulator_class.SingleRhoSimulator(params)
         elif self.simulator_type == "double_rho":
             simulator = simulator_class.DoubleRhoSimulator(params)
         else:
-            raise ValueError(f"simulator_type has to be one of base, single_rho or double rho, found {simulator_type}")
+            raise ValueError(f"simulator_type has to be one of single_rho or double rho, found {simulator_type}")
 
         simulator.load_simulator(dirname)
         self.simulator = simulator
@@ -48,7 +46,11 @@ class BaseInference:
     def get_posterior_samples(self, observations: np.array, num_samples: int = 5_000) -> np.array:
         # Check if array of observations is 2-D and has 5 dimensions (ratings go from 1 to 5)
         observations = sklearn.utils.check_array(observations, ensure_min_features=5)
-        posterior_samples = np.empty((num_samples, observations.shape[0], observations.shape[1]), dtype=np.float64)
+        if self.simulator_type == "single_rho":
+            num_parameters = 1
+        else:
+            num_parameters = 2
+        posterior_samples = np.empty((num_samples, observations.shape[0], num_parameters), dtype=np.float64)
 
         for row in range(observations.shape[0]):
             posterior_samples[:, row, :] = self.posterior.sample(
