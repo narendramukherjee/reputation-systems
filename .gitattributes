@@ -1,3 +1,15 @@
 snpe/artifacts/ICWSM filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/ICWSM/prod_price_brand_snpe.txt filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/ICWSM/rating_hist_speakers_snpe.txt filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/BaseInference_double_rho.pkl filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/DoubleRhoSimulator.pkl filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/stats_binary_features.txt filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/eg_histogram_1.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/eg_histogram_2.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/eg_histogram_3.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/eg_histogram_4.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/mean_rho_distribution.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/parameter_recovery.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/rho_vs_log_price.svg filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/ICWSM/figures/rho_vs_log_revs.svg filter=lfs diff=lfs merge=lfs -text
