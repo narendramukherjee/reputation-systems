@@ -177,6 +177,13 @@ def plot_mean_rho_vs_features(features: pd.DataFrame, features_to_plot: dict) ->
         ax[1].set_ylabel("Posterior mean of " + r"$\rho_{+}$")
         ax[1].set_ylim([0, 4])
 
+    # Also plot the distribution of mean rhos across all products
+    plt.figure()
+    plt.hist(features["rho_0"], color="black", bins=10, alpha=0.5, label=r"$\rho_{-}$")
+    plt.hist(features["rho_1"], color="red", bins=10, alpha=0.5, label=r"$\rho_{+}$")
+    plt.xlim([0, 4])
+    plt.legend()
+
 
 def stats_mean_rho_binary_features(features: pd.DataFrame, features_to_test: list) -> None:
     with open(ARTIFACT_PATH / "stats_binary_features.txt", "w") as f:
@@ -204,7 +211,7 @@ def stats_mean_rho_binary_features(features: pd.DataFrame, features_to_test: lis
 
 def main() -> None:
     # Simulate, infer posterior and save everything in the artifact directory
-    generate_and_save_simulations(15_000, np.ones(5), 0.05)
+    generate_and_save_simulations(20_000, np.ones(5), 0.05)
     infer_and_save_posterior("double_rho")
 
     # Load up the observed data of review histograms and product features
