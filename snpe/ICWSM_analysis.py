@@ -242,7 +242,7 @@ def main() -> None:
     posterior_samples = sample_posterior_with_observed(observed_histograms, 10_000, "double_rho")
 
     # Produce histogram plots to test that model can generate all sorts of review distributions
-    plot_simulated_histogram_variety_test(np.array([[0.0, 0.0], [3.5, 1.0], [1.0, 1.0], [3.5, 1.5]]))
+    plot_simulated_histogram_variety_test(np.array([[0.0, 0.0], [1.5, 3.5], [1.0, 1.0], [3.5, 1.5]]))
 
     # Check parameter recovery by model
     plot_test_parameter_recovery(np.array([[3.5, 1.0], [1.0, 1.0], [1.5, 2.5]]), 10_000, "double_rho")
