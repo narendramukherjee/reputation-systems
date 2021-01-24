@@ -1,9 +1,11 @@
 import multiprocessing as mp
 import pickle
+
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
+
 from joblib import Parallel, delayed
 from snpe.utils.tqdm_utils import tqdm_joblib
 from tqdm import tqdm
@@ -19,9 +21,15 @@ class BaseSimulator:
         but found {len(self.review_prior)}
         """
         self.tendency_to_rate = params.pop("tendency_to_rate")
+        self.simulation_type = params.pop("simulation_type")
+        assert self.simulation_type in [
+            "histogram",
+            "timeseries",
+        ], f"Can only simulate review histogram or timeseries, got simulation_type={self.simulation_type}"
         self.params = params
 
-    def generate_simulation_parameters(self, num_simulations: int) -> dict:
+    @classmethod
+    def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         raise NotImplementedError
 
     def convolve_prior_with_existing_reviews(self, simulated_reviews: np.array) -> np.array:
@@ -65,17 +73,18 @@ class BaseSimulator:
 
     def save_simulations(self, dirname: Path) -> None:
         simulation_dict = {
+            "simulation_type": self.simulation_type,
             "simulation_parameters": self.simulation_parameters,
             "simulations": self.simulations,
             "tendency_to_rate": self.tendency_to_rate,
             "review_prior": self.review_prior,
-            "other_params": self.params,
+            "params": self.params,
         }
-        with open(dirname / (self.__class__.__name__ + ".pkl"), "wb") as f:
+        with open(dirname / f"{self.__class__.__name__}_{self.simulation_type}.pkl", "wb") as f:
             pickle.dump(simulation_dict, f)
 
     def load_simulator(self, dirname: Path) -> None:
-        with open(dirname / (self.__class__.__name__ + ".pkl"), "rb") as f:
+        with open(dirname / f"{self.__class__.__name__}_{self.simulation_type}.pkl", "rb") as f:
             simulation_dict = pickle.load(f)
         for key in simulation_dict:
             setattr(self, key, simulation_dict[key])
@@ -85,7 +94,8 @@ class SingleRhoSimulator(BaseSimulator):
     def __init__(self, params: dict):
         super(SingleRhoSimulator, self).__init__(params)
 
-    def generate_simulation_parameters(self, num_simulations) -> dict:
+    @classmethod
+    def generate_simulation_parameters(cls, num_simulations) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
     def simulate_visitor_journey(self, simulated_reviews: np.array, simulation_id: int) -> int:
@@ -160,21 +170,28 @@ class SingleRhoSimulator(BaseSimulator):
             num_simulated_reviews = int(num_reviews_per_simulation[simulation_id])
 
         total_visitors = num_simulated_reviews * 30
-        simulated_reviews = np.zeros(5)
+        simulated_reviews = np.zeros((1, 5))
 
         for visitor in range(total_visitors):
-            simulated_reviews = self.simulate_visitor_journey(simulated_reviews, simulation_id)
-            if np.sum(simulated_reviews) >= num_simulated_reviews:
+            simulated_reviews = np.vstack(
+                (simulated_reviews, self.simulate_visitor_journey(simulated_reviews[-1, :].copy(), simulation_id))
+            )  # Need to copy the simulated_reviews array here as it is modified inside simulate_visitor_journey
+            if np.sum(simulated_reviews[-1, :]) >= num_simulated_reviews:
                 break
 
-        return simulated_reviews
+        # Return histogram or timeseries of review histograms based on simulation_type
+        if self.simulation_type == "histogram":
+            return simulated_reviews[-1, :]
+        else:
+            return simulated_reviews
 
 
 class DoubleRhoSimulator(SingleRhoSimulator):
     def __init__(self, params):
         super(DoubleRhoSimulator, self).__init__(params)
 
-    def generate_simulation_parameters(self, num_simulations) -> dict:
+    @classmethod
+    def generate_simulation_parameters(cls, num_simulations) -> dict:
         return {
             "rho": np.vstack((np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)).T
         }
