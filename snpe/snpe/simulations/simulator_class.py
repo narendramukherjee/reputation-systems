@@ -3,7 +3,7 @@ import pickle
 
 from collections import deque
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 
@@ -99,7 +99,7 @@ class SingleRhoSimulator(BaseSimulator):
     def generate_simulation_parameters(cls, num_simulations) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
-    def simulate_visitor_journey(self, simulated_reviews: np.array, simulation_id: int) -> int:
+    def simulate_visitor_journey(self, simulated_reviews: np.array, simulation_id: int) -> Union[int, None]:
         # Convolve the current simulated review distribution with the prior to get the posterior of reviews
         review_posterior = self.convolve_prior_with_existing_reviews(simulated_reviews)
 
@@ -122,9 +122,9 @@ class SingleRhoSimulator(BaseSimulator):
 
         # Add a review to the corresponding rating index if the user decided to rate
         if decision_to_rate:
-            simulated_reviews[rating_index] += 1
-
-        return simulated_reviews
+            return rating_index
+        else:
+            return None
 
     def mismatch_calculator(self, experience: float, expected_experience_dist_mean: float) -> float:
         assert experience in np.arange(
@@ -174,8 +174,11 @@ class SingleRhoSimulator(BaseSimulator):
         simulated_reviews = deque([np.zeros(5)], maxlen=total_visitors)
 
         for visitor in range(total_visitors):
-            # Need to copy the simulated_reviews array here as it is modified inside simulate_visitor_journey
-            simulated_reviews.append(self.simulate_visitor_journey(simulated_reviews[-1].copy(), simulation_id))
+            rating_index = self.simulate_visitor_journey(simulated_reviews[-1], simulation_id)
+            if rating_index is not None:
+                current_histogram = simulated_reviews[-1].copy()
+                current_histogram[rating_index] += 1
+                simulated_reviews.append(current_histogram)
             if np.sum(simulated_reviews[-1]) >= num_simulated_reviews:
                 break
 
