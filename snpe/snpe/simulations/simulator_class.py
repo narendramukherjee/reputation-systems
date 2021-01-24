@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import pickle
 
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -170,14 +171,15 @@ class SingleRhoSimulator(BaseSimulator):
             num_simulated_reviews = int(num_reviews_per_simulation[simulation_id])
 
         total_visitors = num_simulated_reviews * 30
-        simulated_reviews = np.zeros((1, 5))
+        simulated_reviews = deque([np.zeros(5)], maxlen=total_visitors)
 
         for visitor in range(total_visitors):
-            simulated_reviews = np.vstack(
-                (simulated_reviews, self.simulate_visitor_journey(simulated_reviews[-1, :].copy(), simulation_id))
-            )  # Need to copy the simulated_reviews array here as it is modified inside simulate_visitor_journey
-            if np.sum(simulated_reviews[-1, :]) >= num_simulated_reviews:
+            # Need to copy the simulated_reviews array here as it is modified inside simulate_visitor_journey
+            simulated_reviews.append(self.simulate_visitor_journey(simulated_reviews[-1].copy(), simulation_id))
+            if np.sum(simulated_reviews[-1]) >= num_simulated_reviews:
                 break
+
+        simulated_reviews = np.array(simulated_reviews)
 
         # Return histogram or timeseries of review histograms based on simulation_type
         if self.simulation_type == "histogram":
