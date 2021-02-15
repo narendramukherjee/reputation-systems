@@ -166,7 +166,7 @@ class SingleRhoSimulator(BaseSimulator):
         self, simulation_id: int, num_reviews_per_simulation: Optional[np.array] = None
     ) -> np.array:
         if num_reviews_per_simulation is None:
-            num_simulated_reviews = np.random.randint(low=20, high=3001)
+            num_simulated_reviews = np.random.randint(low=20, high=5001)
         else:
             num_simulated_reviews = int(num_reviews_per_simulation[simulation_id])
 
@@ -192,7 +192,7 @@ class SingleRhoSimulator(BaseSimulator):
 
 
 class DoubleRhoSimulator(SingleRhoSimulator):
-    def __init__(self, params):
+    def __init__(self, params: dict):
         super(DoubleRhoSimulator, self).__init__(params)
 
     @classmethod
