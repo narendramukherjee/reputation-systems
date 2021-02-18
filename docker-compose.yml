@@ -1,0 +1,18 @@
+# Remember to pass --service-ports to publish ports and make the server accessible on port 8787
+# For use with digital ocean droplets
+
+version: "3.8"
+services:
+  notebook:
+    image: nmukherjee/reputation-systems-snpe
+    command: jupyter notebook --port 2188 --NotebookApp.open_browser=False --NotebookApp.ip='0.0.0.0' --allow-root --NotebookApp.notebook_dir=/data
+    network_mode: host
+    environment:
+      - USER=$USER
+      - TZ=America/New_York
+    tty: true
+    restart: always
+    volumes:
+      - type: bind
+        source: ~/data
+        target: /data
