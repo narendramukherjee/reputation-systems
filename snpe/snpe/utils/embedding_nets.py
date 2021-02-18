@@ -3,14 +3,14 @@ from typing import List
 import torch
 
 
-def get_cnn_1d(conf: dict, x: torch.Tensor) -> torch.nn.Module:
-    # Pull out the required parameters of the embedding CNN
-    num_conv_layers = conf.pop("num_conv_layers")
-    num_channels = conf.pop("num_channels")
-    conv_kernel_size = conf.pop("conv_kernel_size")
-    maxpool_kernel_size = conf.pop("maxpool_kernel_size")
-    num_dense_layers = conf.pop("num_dense_layers")
-
+def get_cnn_1d(
+    x: torch.Tensor,
+    num_conv_layers: int = 4,
+    num_channels: int = 8,
+    conv_kernel_size: int = 5,
+    maxpool_kernel_size: int = 5,
+    num_dense_layers: int = 3,
+) -> torch.nn.Module:
     # Get the input dimensionality of the first linear layer in the model
     # Depends on whether conv_kernel_size is odd or even
     # https://discuss.pytorch.org/t/how-can-i-ensure-that-my-conv1d-retains-the-same-shape-with-unknown-sequence-lengths/73647/8
