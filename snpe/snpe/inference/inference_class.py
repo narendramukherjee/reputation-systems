@@ -18,10 +18,13 @@ from snpe.utils.embedding_nets import get_cnn_1d
 class BaseInference:
     def __init__(self, parameter_prior: torch.distributions.Distribution, device: str = "cpu"):
         self.parameter_prior = parameter_prior
+        assert device in ["cpu", "gpu"], f"Device needs to be cpu or gpu, unknown device {device} provided"
         self.device = device
         if self.device == "cpu":
             torch.set_num_threads(mp.cpu_count())
             print(f"\t Device set to {self.device}, using torch num threads={torch.get_num_threads()}")
+        # Attribute that stores the length of the padded timeseries simulations
+        self.padded_simulation_length = None  # type: int
 
     def load_simulator(
         self, dirname: Path, simulator_type: str = "double_rho", simulation_type: str = "timeseries"
@@ -97,6 +100,9 @@ class HistogramInference(BaseInference):
             simulations = simulation_transform(self.simulator.simulations)
         else:
             simulations = torch.from_numpy(self.simulator.simulations).type(torch.FloatTensor)
+        # Add the length of the padded simulations (if timeseries) for later use
+        if self.simulation_type == "timeseries":
+            self.padded_simulation_length = int(simulations.size()[-1])
         parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
 
         # Get the embedding net for the simulations
@@ -120,6 +126,10 @@ class HistogramInference(BaseInference):
         density_estimator = inference.append_simulations(parameters, simulations).train(
             training_batch_size=batch_size, learning_rate=learning_rate, show_train_summary=True
         )
+        # In case model training was done on gpu, remember to move the neural net to cpu before
+        # building the posterior or getting metrics
+        if self.device == "gpu":
+            inference._neural_net.to(device="cpu")
         # Get the training related metrics
         self.best_validation_log_prob = inference._summary["best_validation_log_probs"][-1]
         self.training_epochs = inference._summary["epochs"][-1]
