@@ -68,6 +68,7 @@ class BaseInference:
             "simulation_type": self.simulation_type,
             "parameter_prior": self.parameter_prior,
             "device": self.device,
+            "padded_simulation_length": self.padded_simulation_length,
             "posterior": self.posterior,
         }
         with open(dirname / (self.__class__.__name__ + f"_{self.simulator_type}.pkl"), "wb") as f:
