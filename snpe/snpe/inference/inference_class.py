@@ -24,7 +24,7 @@ class BaseInference:
             torch.set_num_threads(mp.cpu_count())
             print(f"\t Device set to {self.device}, using torch num threads={torch.get_num_threads()}")
         # Attribute that stores the length of the padded timeseries simulations
-        self.padded_simulation_length = None  # type: int
+        self.padded_simulation_length = None  # type: Optional[int]
 
     def load_simulator(
         self, dirname: Path, simulator_type: str = "double_rho", simulation_type: str = "timeseries"
@@ -179,4 +179,39 @@ class TimeSeriesInference(HistogramInference):
         )
 
     def get_posterior_samples(self, observations: np.ndarray, num_samples: int = 5_000) -> np.ndarray:
-        pass
+        assert hasattr(
+            self, "simulator"
+        ), f"""
+        Simulator needs to be loaded before posterior samples can be obtained in the timeseries case.
+        Run <inference object>.load_simulator first
+        """
+        assert (
+            self.padded_simulation_length is not None
+        ), f"""
+        In the timeseries case, simulations are padded and padded_simulation_length should not be None.
+        Run inference again
+        """
+        # Concatenate the input observations with the simulator's array of simulations so that they can be passed
+        # together to the padding function. We will then pull out the padded observations from this joint array
+        concat_simulations = np.concatenate((self.simulator.simulations, observations), axis=0)
+        padded_concat_simulations = pad_timeseries_for_cnn(concat_simulations)
+        assert (
+            self.padded_simulation_length == padded_concat_simulations.size()[-1]
+        ), f"""
+        During inference, simulations were padded to length {self.padded_simulation_length}. While getting posterior
+        samples, they were padded to {padded_concat_simulations.size()[-1]}. Cut observation length to the same length
+        as the maximum used during inference, i.e, {self.padded_simulation_length}
+        """
+        # Pull out the observations from the concatenated and padded array. They are the last few in that array
+        observations = concat_simulations[-observations.shape[0] :, :, :]
+        if self.simulator_type == "single_rho":
+            num_parameters = 1
+        else:
+            num_parameters = 2
+        posterior_samples = np.empty((num_samples, observations.size()[0], num_parameters), dtype=np.float64)
+
+        for row in range(observations.size()[0]):
+            posterior_samples[:, row, :] = self.posterior.sample(
+                (num_samples,), x=observations[row, :, :], show_progress_bars=False
+            ).numpy()
+        return posterior_samples
