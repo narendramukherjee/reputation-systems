@@ -1,4 +1,5 @@
 import multiprocessing as mp
+
 from pathlib import Path
 
 import arviz
@@ -10,6 +11,7 @@ import sbi.utils as sbi_utils
 import seaborn as sns
 import statsmodels.formula.api as smf
 import torch
+
 from joblib import Parallel, delayed
 from matplotlib.lines import Line2D
 from scipy.stats import ttest_ind

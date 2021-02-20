@@ -204,7 +204,7 @@ class TimeSeriesInference(HistogramInference):
         as the maximum used during inference, i.e, {self.padded_simulation_length}
         """
         # Pull out the observations from the concatenated and padded array. They are the last few in that array
-        observations = concat_simulations[-observations.shape[0] :, :, :]
+        observations = padded_concat_simulations[-observations.shape[0] :, :, :]
         if self.simulator_type == "single_rho":
             num_parameters = 1
         else:
@@ -213,6 +213,6 @@ class TimeSeriesInference(HistogramInference):
 
         for row in range(observations.size()[0]):
             posterior_samples[:, row, :] = self.posterior.sample(
-                (num_samples,), x=observations[row, :, :], show_progress_bars=False
+                (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
             ).numpy()
         return posterior_samples
