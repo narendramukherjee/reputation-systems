@@ -15,3 +15,4 @@ snpe/artifacts/ICWSM/figures/rho_vs_log_price.svg filter=lfs diff=lfs merge=lfs 
 snpe/artifacts/ICWSM/figures/rho_vs_log_revs.svg filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/hyperparameter_tuning/cnn_tuning/trials.pkl filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/hyperparameter_tuning/cnn_tuning/mlruns.zip filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/hyperparameter_tuning/cnn_tuning/TimeSeriesInference_double_rho.pkl filter=lfs diff=lfs merge=lfs -text
