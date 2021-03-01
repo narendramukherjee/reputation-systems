@@ -102,7 +102,7 @@ def main() -> None:
     parameter_prior = sbi_utils.BoxUniform(
         low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
     )
-    inferrer = TimeSeriesInference(parameter_prior=parameter_prior, device="cpu")
+    inferrer = TimeSeriesInference(parameter_prior=parameter_prior, device="gpu")
     inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type="double_rho", simulation_type="timeseries")
 
     print("\t Tuning model")
