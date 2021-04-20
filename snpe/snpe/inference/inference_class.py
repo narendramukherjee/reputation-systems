@@ -38,6 +38,11 @@ class BaseInference:
             simulator = simulator_class.SingleRhoSimulator(params)
         elif self.simulator_type == "double_rho":
             simulator = simulator_class.DoubleRhoSimulator(params)
+        elif self.simulation_type == "herding":
+            # Add the additional parameters that the herding simulator needs to initialize
+            # Again the values aren't important as they will be overridden by those of the loaded simulator
+            params.update({"previous_rating_measure": "mean", "min_reviews_for_herding": 5})
+            simulator = simulator_class.HerdingSimulator(params)
         else:
             raise ValueError(f"simulator_type has to be one of single_rho or double rho, found {self.simulator_type}")
 
