@@ -222,8 +222,8 @@ class DoubleRhoSimulator(SingleRhoSimulator):
 
 class HerdingSimulator(DoubleRhoSimulator):
     def __init__(self, params: dict):
-        self.previous_rating_measure = params.pop("previous_rating_measure")
-        self.min_reviews_for_herding = params.pop("min_reviews_for_herding")
+        self.previous_rating_measure = params["previous_rating_measure"]
+        self.min_reviews_for_herding = params["min_reviews_for_herding"]
         assert self.previous_rating_measure in [
             "mean",
             "mode",
