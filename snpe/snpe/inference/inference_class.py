@@ -38,13 +38,15 @@ class BaseInference:
             simulator = simulator_class.SingleRhoSimulator(params)
         elif self.simulator_type == "double_rho":
             simulator = simulator_class.DoubleRhoSimulator(params)
-        elif self.simulation_type == "herding":
+        elif self.simulator_type == "herding":
             # Add the additional parameters that the herding simulator needs to initialize
             # Again the values aren't important as they will be overridden by those of the loaded simulator
             params.update({"previous_rating_measure": "mean", "min_reviews_for_herding": 5})
             simulator = simulator_class.HerdingSimulator(params)
         else:
-            raise ValueError(f"simulator_type has to be one of single_rho or double rho, found {self.simulator_type}")
+            raise ValueError(
+                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+            )
 
         simulator.load_simulator(dirname)
         self.simulator = simulator
@@ -109,7 +111,20 @@ class HistogramInference(BaseInference):
         # Add the length of the padded simulations (if timeseries) for later use
         if self.simulation_type == "timeseries":
             self.padded_simulation_length = int(simulations.size()[-1])
-        parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
+        # Get the simulation parameters
+        if self.simulator_type in ("single_rho", "double_rho"):
+            parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
+        elif self.simulator_type == "herding":
+            parameters = np.hstack(
+                (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"][:, None])
+            )
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
+            np.testing.assert_array_equal(parameters[:, 2], self.simulator.simulation_parameters["h_p"])
+            parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
+        else:
+            raise ValueError(
+                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+            )
 
         # Get the embedding net for the simulations
         if embedding_net_creator is not None:
