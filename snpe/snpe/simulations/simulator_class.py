@@ -279,8 +279,12 @@ class HerdingSimulator(DoubleRhoSimulator):
                 previous_rating_index = np.where(np.array(simulated_reviews[-1]) - np.array(simulated_reviews[-2]))[0][
                     0
                 ]
-            assert isinstance(
-                previous_rating_index, (int, float)
+            # Numpy inherits from the built-in float type, but not built-in int type. Therefore, we could check if h_p
+            # was an instance of float at the start of this method, but can't use
+            # isinstance(previous_rating_index, (float, int)) here.
+            # Check: https://numpy.org/doc/stable/reference/arrays.scalars.html
+            assert np.issubdtype(
+                previous_rating_index, np.number
             ), f"Previous rating index should be a number, found {type(previous_rating_index)} instead"
             assert (
                 np.sum(simulated_reviews[-1]) >= 1
