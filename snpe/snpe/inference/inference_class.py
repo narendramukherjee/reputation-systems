@@ -162,8 +162,14 @@ class HistogramInference(BaseInference):
         observations = sklearn.utils.check_array(observations, ensure_min_features=5)
         if self.simulator_type == "single_rho":
             num_parameters = 1
-        else:
+        elif self.simulator_type == "double_rho:
             num_parameters = 2
+        elif self.simulator_type == "herding":
+            num_parameters = 3
+        else:
+            raise ValueError(
+                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+            )
         posterior_samples = np.empty((num_samples, observations.shape[0], num_parameters), dtype=np.float64)
 
         for row in range(observations.shape[0]):
@@ -227,8 +233,14 @@ class TimeSeriesInference(HistogramInference):
         observations = padded_concat_simulations[-observations.shape[0] :, :, :]
         if self.simulator_type == "single_rho":
             num_parameters = 1
-        else:
+        elif self.simulator_type == "double_rho:
             num_parameters = 2
+        elif self.simulator_type == "herding":
+            num_parameters = 3
+        else:
+            raise ValueError(
+                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+            )
         posterior_samples = np.empty((num_samples, observations.size()[0], num_parameters), dtype=np.float64)
 
         for row in range(observations.size()[0]):
