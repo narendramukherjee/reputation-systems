@@ -162,7 +162,7 @@ class HistogramInference(BaseInference):
         observations = sklearn.utils.check_array(observations, ensure_min_features=5)
         if self.simulator_type == "single_rho":
             num_parameters = 1
-        elif self.simulator_type == "double_rho:
+        elif self.simulator_type == "double_rho":
             num_parameters = 2
         elif self.simulator_type == "herding":
             num_parameters = 3
@@ -233,7 +233,7 @@ class TimeSeriesInference(HistogramInference):
         observations = padded_concat_simulations[-observations.shape[0] :, :, :]
         if self.simulator_type == "single_rho":
             num_parameters = 1
-        elif self.simulator_type == "double_rho:
+        elif self.simulator_type == "double_rho":
             num_parameters = 2
         elif self.simulator_type == "herding":
             num_parameters = 3
