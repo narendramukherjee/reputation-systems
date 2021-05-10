@@ -29,30 +29,34 @@ plt.ion()
 ARTIFACT_PATH = Path("./artifacts/ICWSM")
 
 
-def generate_and_save_simulations(num_simulations: int, review_prior: np.array, tendency_to_rate: float) -> None:
-    params = {"review_prior": review_prior, "tendency_to_rate": tendency_to_rate}
+def generate_and_save_simulations(
+    num_simulations: int, review_prior: np.array, tendency_to_rate: float, simulation_type: str
+) -> None:
+    params = {"review_prior": review_prior, "tendency_to_rate": tendency_to_rate, "simulation_type": simulation_type}
     simulator = simulator_class.DoubleRhoSimulator(params)
     simulator.simulate(num_simulations=num_simulations)
     simulator.save_simulations(ARTIFACT_PATH)
 
 
-def infer_and_save_posterior(simulator_type: str) -> None:
+def infer_and_save_posterior(simulator_type: str, simulation_type: str) -> None:
     parameter_prior = sbi_utils.BoxUniform(
         low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
     )
-    inferrer = inference_class.BaseInference(parameter_prior=parameter_prior, device="cpu")
-    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type)
+    inferrer = inference_class.HistogramInference(parameter_prior=parameter_prior, device="cpu")
+    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type, simulation_type=simulation_type)
     inferrer.infer_snpe_posterior()
     inferrer.save_inference(ARTIFACT_PATH)
 
 
-def sample_posterior_with_observed(observed_histograms: np.array, num_samples: int, simulator_type: str) -> np.array:
+def sample_posterior_with_observed(
+    observed_histograms: np.array, num_samples: int, simulator_type: str, simulation_type: str
+) -> np.array:
     # The parameter prior doesn't matter here as it will be overridden by that of the loaded inference object
     parameter_prior = sbi.utils.BoxUniform(
         low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
     )
-    inferrer = inference_class.BaseInference(parameter_prior=parameter_prior)
-    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type)
+    inferrer = inference_class.HistogramInference(parameter_prior=parameter_prior)
+    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type, simulation_type=simulation_type)
     inferrer.load_inference(dirname=ARTIFACT_PATH)
     posterior_samples = inferrer.get_posterior_samples(observed_histograms, num_samples=num_samples)
     return posterior_samples
@@ -96,7 +100,7 @@ def plot_simulated_vs_actual_histogram_test(
     # We will simulate as many reviews for each products as exist in their observed histograms
     # total_reviews = np.sum(observed_histograms[products_to_test, :], axis=1)
 
-    params = {"review_prior": np.ones(5), "tendency_to_rate": 0.05}
+    params = {"review_prior": np.ones(5), "tendency_to_rate": 0.05, "simulation_type": "histogram"}
     simulator = simulator_class.DoubleRhoSimulator(params)
     # Take posterior samples of the products we want to test
     # We will simulate distributions using these posterior samples as parameters
@@ -213,7 +217,7 @@ def stats_mean_rho_binary_features(features: pd.DataFrame, features_to_test: lis
 
 def main() -> None:
     # Simulate, infer posterior and save everything in the artifact directory
-    generate_and_save_simulations(20_000, np.ones(5), 0.05)
+    generate_and_save_simulations(20_000, np.ones(5), 0.05, "histogram")
     infer_and_save_posterior("double_rho")
 
     # Load up the observed data of review histograms and product features
