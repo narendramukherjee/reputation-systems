@@ -2,7 +2,7 @@ import multiprocessing as mp
 
 from collections import deque
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import arviz
 import matplotlib.pyplot as plt
@@ -20,6 +20,7 @@ from matplotlib.lines import Line2D
 from scipy.stats import ttest_ind
 from snpe.inference import inference_class
 from snpe.simulations import simulator_class
+from snpe.utils.statistics import review_histogram_correlation
 from snpe.utils.tqdm_utils import tqdm_joblib
 from tqdm import tqdm
 
@@ -94,7 +95,9 @@ def plot_simulated_vs_actual_histogram_test(
     products_to_test: np.array,
     previous_rating_measure: str,
     min_reviews_for_herding: int,
-) -> None:
+    plot_histograms: bool = False,
+    return_raw_simulations: bool = True,
+) -> np.ndarray:
     print(posterior_samples.shape)
     products_to_test = products_to_test.astype("int")
     simulated_histograms = np.zeros((posterior_samples.shape[0], len(products_to_test), 5))
@@ -125,25 +128,48 @@ def plot_simulated_vs_actual_histogram_test(
     simulated_histograms[:, :, :] = simulations.reshape((-1, len(products_to_test), 5), order="F")
     simulated_histograms /= np.sum(simulated_histograms, axis=-1)[:, :, None]
 
-    for i in range(len(products_to_test)):
-        plt.figure()
-        plt.plot(
-            np.arange(5) + 1,
-            observed_histograms[i, :] / np.sum(observed_histograms[i, :]),
-            linewidth=4.0,
-            color="black",
-        )
-        # Get the HPDs of the simulated histograms
-        hpd = arviz.hdi(simulated_histograms[:, i, :], hdi_prob=0.95)
-        plt.fill_between(np.arange(5) + 1, hpd[:, 0], hpd[:, 1], color="black", alpha=0.4)
-        plt.ylim([0, 1])
+    if plot_histograms:
+        for i in range(len(products_to_test)):
+            plt.figure()
+            plt.plot(
+                np.arange(5) + 1,
+                observed_histograms[i, :] / np.sum(observed_histograms[i, :]),
+                linewidth=4.0,
+                color="black",
+            )
+            # Get the HPDs of the simulated histograms
+            hpd = arviz.hdi(simulated_histograms[:, i, :], hdi_prob=0.95)
+            plt.fill_between(np.arange(5) + 1, hpd[:, 0], hpd[:, 1], color="black", alpha=0.4)
+            plt.ylim([0, 1])
+
+    if return_raw_simulations:
+        return simulations
+    else:
+        return simulated_histograms
 
 
-def plot_test_parameter_recovery(parameters: np.array, num_posterior_samples: int, simulator_type: str) -> None:
+def plot_test_parameter_recovery(
+    parameters: np.array,
+    num_posterior_samples: int,
+    simulator_type: str,
+    simulation_type: str,
+    previous_rating_measure: str,
+    min_reviews_for_herding: int,
+    plot_posteriors: bool = False,
+    get_stats: bool = False,
+    rho_posterior_prob_band: Optional[float] = None,
+    herding_posterior_prob_band: Optional[float] = None,
+) -> np.ndarray:
     # Simulate review histograms using provided parameters
-    params = {"review_prior": np.ones(5), "tendency_to_rate": 0.05}
-    simulator = simulator_class.DoubleRhoSimulator(params)
-    simulator.simulation_parameters = {"rho": parameters}
+    params = {
+        "review_prior": np.ones(5),
+        "tendency_to_rate": 0.05,
+        "simulation_type": simulation_type,
+        "previous_rating_measure": previous_rating_measure,
+        "min_reviews_for_herding": min_reviews_for_herding,
+    }
+    simulator = simulator_class.HerdingSimulator(params)
+    simulator.simulation_parameters = {"rho": parameters[:, :2], "h_p": parameters[:, 2]}
     with tqdm_joblib(tqdm(desc="Simulations", total=parameters.shape[0])) as progress_bar:
         simulations = Parallel(n_jobs=mp.cpu_count())(
             delayed(simulator.simulate_review_histogram)(i) for i in range(parameters.shape[0])
@@ -152,31 +178,186 @@ def plot_test_parameter_recovery(parameters: np.array, num_posterior_samples: in
 
     # The parameter prior doesn't matter here as it will be overridden by that of the loaded inference object
     parameter_prior = sbi.utils.BoxUniform(
-        low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
+        low=torch.tensor([0.0, 0.0, 0.0]).type(torch.FloatTensor),
+        high=torch.tensor([4.0, 4.0, 1.0]).type(torch.FloatTensor),
     )
-    inferrer = inference_class.BaseInference(parameter_prior=parameter_prior)
-    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type)
+    inferrer = inference_class.TimeSeriesInference(parameter_prior=parameter_prior)
+    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type=simulator_type, simulation_type=simulation_type)
     inferrer.load_inference(dirname=ARTIFACT_PATH)
     posterior_samples = inferrer.get_posterior_samples(simulations, num_samples=num_posterior_samples)
 
     # Plot the posterior samples inferred for the simulated data
     # We will plot upto 4 plots in one row of the panel
-    if len(parameters) <= 4:
-        fig, ax = plt.subplots(1, len(parameters), squeeze=False)
-    else:
-        fig, ax = plt.subplots((len(parameters) + 1) // 4, 4, squeeze=False)
-    row_index = 0
-    for i in range(len(parameters)):
-        if len(parameters) > 4:
-            row_index = i // 4
-        ax[row_index, i % 4].hist(posterior_samples[:, i, 0], color="black", alpha=0.5, bins=10, label=r"$\rho_{-}$")
-        ax[row_index, i % 4].axvline(x=parameters[i, 0], linewidth=3.0, color="black", linestyle="--")
-        ax[row_index, i % 4].hist(posterior_samples[:, i, 1], color="red", alpha=0.5, bins=10, label=r"$\rho_{+}$")
-        ax[row_index, i % 4].axvline(x=parameters[i, 1], linewidth=3.0, color="red", linestyle="--")
-        ax[row_index, i % 4].set_xlim([0, 4])
-        ax[row_index, i % 4].set_xticks([0, 1, 2, 3, 4])
-        ax[row_index, i % 4].legend()
+    if plot_posteriors:
+        if len(parameters) <= 4:
+            fig, ax = plt.subplots(2, len(parameters), squeeze=False)
+        else:
+            fig, ax = plt.subplots(2 * ((len(parameters) + 1) // 4), 4, squeeze=False)
+        row_index = 0
+        for i in range(len(parameters)):
+            if len(parameters) > 4:
+                row_index = 2 * (i // 4)
+            ax[row_index, i % 4].hist(
+                posterior_samples[:, i, 0], color=sns.xkcd_rgb["cerulean"], alpha=0.5, bins=10, label=r"$\rho_{-}$"
+            )
+            ax[row_index, i % 4].axvline(
+                x=parameters[i, 0], linewidth=3.0, color=sns.xkcd_rgb["cerulean"], linestyle="--"
+            )
+            ax[row_index, i % 4].hist(
+                posterior_samples[:, i, 1], color=sns.xkcd_rgb["dark orange"], alpha=0.5, bins=10, label=r"$\rho_{+}$"
+            )
+            ax[row_index, i % 4].axvline(
+                x=parameters[i, 1], linewidth=3.0, color=sns.xkcd_rgb["dark orange"], linestyle="--"
+            )
+            ax[row_index + 1, i % 4].hist(
+                posterior_samples[:, i, 2], color=sns.xkcd_rgb["black"], alpha=0.5, bins=10, label=r"$h_{p}$"
+            )
+            ax[row_index + 1, i % 4].axvline(x=parameters[i, 2], linewidth=3.0, color=sns.xkcd_rgb["black"], linestyle="--")
+            ax[row_index, i % 4].set_xlim([0, 4])
+            ax[row_index + 1, i % 4].set_xlim([0, 1])
+            ax[row_index, i % 4].set_xticks([0, 1, 2, 3, 4])
+            ax[row_index + 1, i % 4].set_xticks([0, 0.5, 1])
+            ax[row_index + 1, i % 4].set_xticklabels(["0", "0.5", "1"])
+            ax[row_index, i % 4].tick_params(axis='y', labelsize=17)
+            ax[row_index + 1, i % 4].tick_params(axis='y', labelsize=17)
+            ax[row_index, i % 4].legend(fontsize=20)
+            ax[row_index + 1, i % 4].legend(fontsize=20)
+        # add a big axis, hide frame
+        fig.add_subplot(111, frameon=False)
+        # hide tick and tick label of the big axis
+        plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+        #plt.xlabel(r"$\rho_{-}, \rho_{+}$")
+        plt.ylabel("Number of samples")
 
+    # If asked, print how many of the provided parameters are recovered by the inference engine
+    # i.e, how often do the supplied parameters lie within the 95% HPD of the posterior
+    if get_stats:
+        f = open(ARTIFACT_PATH / "stats_parameter_recovery.txt", "w")
+        assert (
+            posterior_samples.shape == (num_posterior_samples,) + parameters.shape
+        ), f"""
+        Expected shape {(num_posterior_samples,) + parameters.shape} for array of posterior samples,
+        but got {posterior_samples.shape} instead
+        """
+        # First get the HPD of each recovered posterior distribution
+        hpd = np.array([arviz.hdi(posterior_samples[:, i, :], hdi_prob=0.95) for i in range(parameters.shape[0])])
+        assert hpd.shape == parameters.shape + (2,), f"Found shape {hpd.shape} for hpd"
+        # See how many of the supplied rho_- and rho_+ are contained in these HPDs
+        contained_rho_0 = [
+            True if (parameters[i, 0] <= hpd[i, 0, 1] and parameters[i, 0] >= hpd[i, 0, 0]) else False
+            for i in range(parameters.shape[0])
+        ]
+        contained_rho_1 = [
+            True if (parameters[i, 1] <= hpd[i, 1, 1] and parameters[i, 1] >= hpd[i, 1, 0]) else False
+            for i in range(parameters.shape[0])
+        ]
+        contained_h_p = [
+            True if (parameters[i, 2] <= hpd[i, 2, 1] and parameters[i, 2] >= hpd[i, 2, 0]) else False
+            for i in range(parameters.shape[0])
+        ]
+        print(
+            f"""
+        rho- is recovered {np.sum(contained_rho_0)} times out of {parameters.shape[0]}
+        = {100*(np.sum(contained_rho_0) / parameters.shape[0]):0.2f}%"
+        """,
+            file=f,
+        )
+        print(
+            f"""
+        rho+ is recovered {np.sum(contained_rho_1)} times out of {parameters.shape[0]}
+        = {100*(np.sum(contained_rho_1) / parameters.shape[0]):0.2f}%"
+        """,
+            file=f,
+        )
+        print(
+            f"""
+        Herding parameter h_p is recovered {np.sum(contained_h_p)} times out of {parameters.shape[0]}
+        = {100*(np.sum(contained_h_p) / parameters.shape[0]):0.2f}%"
+        """,
+            file=f,
+        )
+        print("=======================================================", file=f)
+        # Now get the probability that the posterior distribution puts in a band/region around
+        # the passed parameter values. For good parameter recovery, this number should be high
+        assert (
+            rho_posterior_prob_band is not None and herding_posterior_prob_band is not None
+        ), f"""
+        Posterior probability band around parameter values need to be passed if stats are needed
+        """
+        rho_band_low = parameters[:, :2] - rho_posterior_prob_band
+        rho_band_high = parameters[:, :2] + rho_posterior_prob_band
+        h_p_band_low = parameters[:, 2] - herding_posterior_prob_band
+        h_p_band_high = parameters[:, 2] + herding_posterior_prob_band
+        rho_0_probs = (posterior_samples[:, :, 0] >= rho_band_low[None, :, 0]) * (
+            posterior_samples[:, :, 0] <= rho_band_high[None, :, 0]
+        )
+        rho_0_probs = np.mean(rho_0_probs, axis=0)
+        rho_1_probs = (posterior_samples[:, :, 1] >= rho_band_low[None, :, 1]) * (
+            posterior_samples[:, :, 1] <= rho_band_high[None, :, 1]
+        )
+        rho_1_probs = np.mean(rho_1_probs, axis=0)
+        h_p_probs = (posterior_samples[:, :, 2] >= h_p_band_low[None, :]) * (
+            posterior_samples[:, :, 2] <= h_p_band_high[None, :]
+        )
+        h_p_probs = np.mean(h_p_probs, axis=0)
+        print(
+            f"""
+        In {100*np.mean(rho_0_probs>=0.5):0.2f}% of cases, the inferred posterior places more than 50% probability
+        in a band of {2*rho_posterior_prob_band} around the true value of rho-
+        """,
+            file=f,
+        )
+        print(
+            f"""
+        In {100*np.mean(rho_1_probs>=0.5):0.2f}% of cases, the inferred posterior places more than 50% probability
+        in a band of {2*rho_posterior_prob_band} around the true value of rho+
+        """,
+            file=f,
+        )
+        print(
+            f"""
+        In {100*np.mean(h_p_probs>=0.5):0.2f}% of cases, the inferred posterior places more than 50% probability
+        in a band of {2*herding_posterior_prob_band} around the true value of herding parameter h_p
+        """,
+            file=f,
+        )
+        f.close()
+        # Finally, plot the distribution of the posterior probability the inference engine places in a
+        # band around the true value of rho- and rho+
+        plt.figure()
+        plt.hist(rho_0_probs, alpha=0.5, label=r"$\rho_{-}$")
+        plt.hist(rho_1_probs, alpha=0.5, label=r"$\rho_{+}$")
+        plt.hist(h_p_probs, alpha=0.5, label=r"$h_{p}$")
+        plt.legend(fontsize=20)
+
+    return posterior_samples
+
+def plot_mean_posteriors_for_products(posterior_samples: np.ndarray) -> None:
+    fig, ax = plt.subplots(1, 2, squeeze=False)
+    ax[0, 0].hist(np.mean(posterior_samples[:, :, 0], axis=0),
+               color=sns.xkcd_rgb["cerulean"],
+               alpha=0.5, bins=10,
+               label=r"$\rho_{-}$")
+    ax[0, 0].hist(np.mean(posterior_samples[:, :, 1], axis=0),
+               color=sns.xkcd_rgb["dark orange"],
+               alpha=0.5, bins=10,
+               label=r"$\rho_{+}$")
+    ax[0, 1].hist(np.mean(posterior_samples[:, :, 2], axis=0),
+               color=sns.xkcd_rgb["black"],
+               alpha=0.5, bins=10,
+               label=r"$h_p$")
+    ax[0, 0].legend(fontsize=20)
+    ax[0, 1].legend(fontsize=20)
+    ax[0, 0].set_xticks([0, 1, 2, 3, 4])
+    ax[0, 1].set_xticks([0, 0.5, 1])
+    ax[0, 0].tick_params(axis='both', labelsize=23)
+    ax[0, 1].tick_params(axis='both', labelsize=23)
+    # add a big axis, hide frame
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axis
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+    #plt.xlabel(r"$\rho_{-}, \rho_{+}$")
+    plt.ylabel(f"Number of products (Total = {posterior_samples.shape[1]})", fontsize=28)
 
 def main() -> None:
     torch.set_num_threads(8)
@@ -230,6 +411,8 @@ def main() -> None:
 
     # Get samples from the posteriors
     posterior_samples = sample_posterior_with_observed(timeseries_data, 10_000, "herding", "timeseries")
+    # Plot the distribution of the mean of the posteriors across products
+    plot_mean_posteriors_for_products(posterior_samples)
 
     # To do posterior predictive checks on histograms, first get histograms from timeseries data
     histogram_data = np.array([ts[-1] for ts in timeseries_data])
@@ -237,10 +420,56 @@ def main() -> None:
         histogram_data.shape[1] == 5
     ), f"Should have shape 5 on axis 1 of histograms, got shape {histogram_data.shape} instead"
 
-    plot_simulated_vs_actual_histogram_test(
+    simulated_histograms = plot_simulated_vs_actual_histogram_test(
         histogram_data,
-        posterior_samples,
+        posterior_samples[::500, :, :],
         products_to_test=np.array([1, 7, 11, 500]),
         previous_rating_measure="mode",
         min_reviews_for_herding=5,
+        plot_histograms=True,
+        return_raw_simulations=False,
+    )
+
+    # Get simulated histograms for all products
+    simulated_histograms = plot_simulated_vs_actual_histogram_test(
+        histogram_data,
+        posterior_samples[::500, :, :],
+        products_to_test=np.arange(histogram_data.shape[0]),
+        previous_rating_measure="mode",
+        min_reviews_for_herding=5,
+        return_raw_simulations=False,
+    )
+    # simulated_histograms = raw_simulations.reshape((-1, observed_histograms.shape[0], 5), order="F")
+    # simulated_histograms /= np.sum(simulated_histograms, axis=-1)[:, :, None]
+    np.save(ARTIFACT_PATH / "posterior_predictive_simulations.npy", simulated_histograms)
+    # Then get the correlations of the mean and HPD limits of the simulated histograms with the observed
+    # aka posterior predictive check (PPC)
+    ppc_corr = review_histogram_correlation(histogram_data, simulated_histograms)
+    np.save(ARTIFACT_PATH / "ppc_correlations.npy", ppc_corr)
+
+    # Check parameter recovery by model for a handful of parameter values
+    recovered_posterior = plot_test_parameter_recovery(
+        np.array([[3.5, 1.0, 0.1], [1.0, 1.0, 0.5], [1.5, 2.5, 0.8]]),
+        10_000,
+        "herding",
+        "timeseries",
+        "mode",
+        5,
+        plot_posteriors=True,
+    )
+    # Do the same for a larger number of parameter values, but this time don't plot the posteriors
+    parameters = np.vstack(
+        (np.random.random(size=1000) * 4, np.random.random(size=1000) * 4, np.random.random(size=1000))
+    ).T
+    recovered_posteriors = plot_test_parameter_recovery(
+        parameters,
+        10_000,
+        "herding",
+        "timeseries",
+        "mode",
+        5,
+        plot_posteriors=False,
+        get_stats=True,
+        rho_posterior_prob_band=0.5,
+        herding_posterior_prob_band=0.125,
     )
