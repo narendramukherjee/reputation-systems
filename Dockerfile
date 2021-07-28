@@ -5,7 +5,7 @@ LABEL maintainer="Narendra Mukherjee <narendra.mukherjee@gmail.com>"
 RUN conda install pytorch torchvision torchaudio cpuonly -c pytorch
 
 # Install other required packages
-RUN pip install sbi hyperopt mlflow tqdm arviz black nb_black pyreadr
+RUN pip install sbi hyperopt mlflow tqdm arviz black nb_black pyreadr mypy
 
 # Make a data folder which will be connected to the host
 RUN mkdir /data
