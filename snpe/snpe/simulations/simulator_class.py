@@ -39,7 +39,7 @@ class BaseSimulator:
         ), "Prior and simulated distributions of reviews should have the same shape"
         return self.review_prior + simulated_reviews
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> np.ndarray:
+    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> Union[int, None]:
         raise NotImplementedError
 
     def simulate_review_histogram(
@@ -96,7 +96,7 @@ class SingleRhoSimulator(BaseSimulator):
         super(SingleRhoSimulator, self).__init__(params)
 
     @classmethod
-    def generate_simulation_parameters(cls, num_simulations) -> dict:
+    def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
     def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> Union[int, None]:
@@ -197,7 +197,7 @@ class DoubleRhoSimulator(SingleRhoSimulator):
         super(DoubleRhoSimulator, self).__init__(params)
 
     @classmethod
-    def generate_simulation_parameters(cls, num_simulations) -> dict:
+    def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {
             "rho": np.vstack((np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)).T
         }
@@ -235,7 +235,7 @@ class HerdingSimulator(DoubleRhoSimulator):
         super(HerdingSimulator, self).__init__(params)
 
     @classmethod
-    def generate_simulation_parameters(cls, num_simulations) -> dict:
+    def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {
             "rho": np.vstack(
                 (np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)
@@ -256,9 +256,13 @@ class HerdingSimulator(DoubleRhoSimulator):
         else:
             return rating_index
 
+    def choose_herding_parameter(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> float:
+        return self.simulation_parameters["h_p"][simulation_id]
+
     def herding(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> int:
         # Pull out the herding parameter which will be used in this simulation
-        h_p = self.simulation_parameters["h_p"][simulation_id]
+        # This step is trivial when using a single herding h_p, but becomes important when using 2
+        h_p = self.choose_herding_parameter(rating_index, simulated_reviews, simulation_id)
         assert isinstance(h_p, float), f"Expecting a scalar value for the herding parameter, got {h_p} instead"
         # For the user whose decision to rate is being simulated, generate a herding parameter h_u
         h_u = np.random.random()
@@ -295,3 +299,45 @@ class HerdingSimulator(DoubleRhoSimulator):
         else:
             # Herding not happening
             return rating_index
+
+
+class DoubleHerdingSimulator(HerdingSimulator):
+    # Simulates herding with 2 product-specific herding parameters (h_p): one is used when the visitor's intended rating
+    # is above a metric of existing ratings (mean or mode) and the other when it is below
+    def __init__(self, params: dict):
+        self.herding_differentiating_measure = params["herding_differentiating_measure"]
+        assert self.herding_differentiating_measure in [
+            "mean",
+            "mode",
+        ], f"""
+        Can only use mean/mode of the existing ratings to choose the h_p to use,
+        provided {self.herding_differentiating_measure} instead
+        """
+        super(DoubleHerdingSimulator, self).__init__(params)
+
+    @classmethod
+    def generate_simulation_parameters(cls, num_simulations) -> dict:
+        return {
+            "rho": np.vstack(
+                (np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)
+            ).T,
+            "h_p": np.vstack((np.random.random(size=num_simulations), np.random.random(size=num_simulations))).T,
+        }
+
+    def choose_herding_parameter(self, rating_index, simulated_reviews: np.ndarray, simulation_id: int) -> float:
+        # Pull out the (2 valued) h_p corresponding to this simulation id
+        h_p = self.simulation_parameters["h_p"][simulation_id]
+        # Confirm that h_p is 2-dimensional
+        assert h_p.shape == (2,), f"Expecting shape (2,) for h_p, got {h_p.shape} instead"
+        # Pick which h_p to use based on the rating_index that the visitor picked
+        # If it is greater than the mean/mode of existing ratings, pick h_p[1], else pick h_p[0]
+        if self.herding_differentiating_measure == "mean":
+            metric = np.sum(np.array(simulated_reviews[-1]) * np.arange(5)) / np.array(simulated_reviews[-1]).sum()
+        elif self.herding_differentiating_measure == "mode":
+            # WARNING: If the histogram has more than 1 mode, argmax will ONLY RETURN THE FIRST ONE
+            metric = np.argmax(np.array(simulated_reviews[-1]))
+
+        if rating_index <= metric:
+            return h_p[0]
+        else:
+            return h_p[1]
