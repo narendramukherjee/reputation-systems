@@ -336,6 +336,13 @@ class DoubleHerdingSimulator(HerdingSimulator):
         elif self.herding_differentiating_measure == "mode":
             # WARNING: If the histogram has more than 1 mode, argmax will ONLY RETURN THE FIRST ONE
             metric = np.argmax(np.array(simulated_reviews[-1]))
+        else:
+            raise ValueError(
+                f"""
+                herding_differentiating_measure has to be one of mean or mode,
+                found {self.herding_differentiating_measure} instead
+                """
+            )
 
         if rating_index <= metric:
             return h_p[0]

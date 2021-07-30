@@ -38,14 +38,21 @@ class BaseInference:
             simulator = simulator_class.SingleRhoSimulator(params)
         elif self.simulator_type == "double_rho":
             simulator = simulator_class.DoubleRhoSimulator(params)
-        elif self.simulator_type == "herding":
+        elif self.simulator_type == "single_herding":
             # Add the additional parameters that the herding simulator needs to initialize
             # Again the values aren't important as they will be overridden by those of the loaded simulator
             params.update({"previous_rating_measure": "mean", "min_reviews_for_herding": 5})
             simulator = simulator_class.HerdingSimulator(params)
+        elif self.simulator_type == "double_herding":
+            # 1 additional parameter for the double herding simulator, will be overridden by the loaded simulator
+            params.update({"herding_differentiating_measure": "mean"})
+            simulator = simulator_class.DoubleHerdingSimulator(params)
         else:
             raise ValueError(
-                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+                f"""
+                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                found {self.simulator_type} instead
+                """
             )
 
         simulator.load_simulator(dirname)
@@ -114,16 +121,26 @@ class HistogramInference(BaseInference):
         # Get the simulation parameters
         if self.simulator_type in ("single_rho", "double_rho"):
             parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
-        elif self.simulator_type == "herding":
+        elif self.simulator_type == "single_herding":
             parameters = np.hstack(
                 (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"][:, None])
             )
             np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
             np.testing.assert_array_equal(parameters[:, 2], self.simulator.simulation_parameters["h_p"])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
+        elif self.simulator_type == "double_herding":
+            parameters = np.hstack(
+                (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"])
+            )
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
+            np.testing.assert_array_equal(parameters[:, 2:], self.simulator.simulation_parameters["h_p"])
+            parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         else:
             raise ValueError(
-                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+                f"""
+                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                found {self.simulator_type} instead
+                """
             )
 
         # Get the embedding net for the simulations
@@ -132,6 +149,9 @@ class HistogramInference(BaseInference):
                 embedding_net_conf is not None
             ), f"""embedding_net_conf dict not provided even though
                embedding_net_creator function {embedding_net_creator} provided"""
+            # We pass a subset of simulations to the embedding net creator function
+            # This is needed in the time series case to deduce the dimensionality of the first linear layer
+            # in the embedding net
             embedding_net = embedding_net_creator(simulations[:5], **embedding_net_conf)
         else:
             embedding_net = torch.nn.Identity()
@@ -164,11 +184,16 @@ class HistogramInference(BaseInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type == "herding":
+        elif self.simulator_type == "single_herding":
             num_parameters = 3
+        elif self.simulator_type == "double_herding":
+            num_parameters = 4
         else:
             raise ValueError(
-                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+                f"""
+                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                found {self.simulator_type} instead
+                """
             )
         posterior_samples = np.empty((num_samples, observations.shape[0], num_parameters), dtype=np.float64)
 
@@ -235,11 +260,16 @@ class TimeSeriesInference(HistogramInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type == "herding":
+        elif self.simulator_type == "single_herding":
             num_parameters = 3
+        elif self.simulator_type == "double_herding":
+            num_parameters = 4
         else:
             raise ValueError(
-                f"simulator_type has to be one of single_rho, double rho or herding, found {self.simulator_type}"
+                f"""
+                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                found {self.simulator_type} instead
+                """
             )
         posterior_samples = np.empty((num_samples, observations.size()[0], num_parameters), dtype=np.float64)
 
