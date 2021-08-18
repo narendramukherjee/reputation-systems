@@ -20,7 +20,8 @@ SEARCH_SPACE = {
     "batch_size": hp.choice("batch_size", [32, 64, 128, 256]),
     # log(1e-6)=-13.82, log(1e-2)=-4.6, as a result learning rate is log-uniform distributed between
     # 1e-6 and 1e-2 in the setup below
-    "learning_rate": hp.loguniform("learning_rate", -13.82, -4.6),
+    # "learning_rate": hp.loguniform("learning_rate", -13.82, -4.6),
+    "learning_rate": hp.uniform("learning_rate", 1e-6, 5e-1),
     "hidden_features": hp.choice("hidden_features", range(20, 80, 5)),
     "num_transforms": hp.choice("num_transforms", range(2, 9, 1)),
     "num_conv_layers": hp.choice("num_conv_layers", range(1, 7, 1)),
@@ -111,6 +112,7 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown compute location {args.compute_location}")
 
+    mlflow.set_tracking_uri(artifact_path)
     mlflow.set_experiment(f"snpe-fully-padded-cnn-timeseries-tuning")
     # Initialize the model and load context - needs to be done whether using local data or doing transforms
     print("\t Initialize inference object")
