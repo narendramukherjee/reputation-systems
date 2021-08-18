@@ -14,7 +14,7 @@ from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, tpe
 from snpe.inference.inference_class import TimeSeriesInference
 
 LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
-GCS_ARTIFACT_PATH = Path("../../../gcs_mount/artifacts/double_herding_simulator")
+GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/double_herding_simulator")
 
 SEARCH_SPACE = {
     "batch_size": hp.choice("batch_size", [32, 64, 128, 256]),
