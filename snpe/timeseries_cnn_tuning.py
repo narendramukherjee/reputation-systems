@@ -112,7 +112,7 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown compute location {args.compute_location}")
 
-    mlflow.set_tracking_uri(artifact_path)
+    mlflow.set_tracking_uri("file:/" + str(artifact_path))
     mlflow.set_experiment(f"snpe-fully-padded-cnn-timeseries-tuning")
     # Initialize the model and load context - needs to be done whether using local data or doing transforms
     print("\t Initialize inference object")
