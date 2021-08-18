@@ -132,7 +132,7 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown simulator type {args.simulator_type}")
     inferrer = TimeSeriesInference(parameter_prior=parameter_prior, device="gpu")
-    inferrer.load_simulator(dirname=artifact_path, simulator_type="double_rho", simulation_type="timeseries")
+    inferrer.load_simulator(dirname=artifact_path, simulator_type=args.simulator_type, simulation_type="timeseries")
 
     print("\t Tuning model")
     tuning(inferrer=inferrer, artifact_path=artifact_path, max_evals=args.max_evals)
