@@ -13,7 +13,8 @@ import torch
 from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, tpe
 from snpe.inference.inference_class import TimeSeriesInference
 
-ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
+LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
+GCS_ARTIFACT_PATH = Path("../../../gcs_mount/artifacts/double_herding_simulator")
 
 SEARCH_SPACE = {
     "batch_size": hp.choice("batch_size", [32, 64, 128, 256]),
@@ -65,9 +66,9 @@ def load_trials(trials_space_file: Path) -> Trials:
         return Trials()
 
 
-def tuning(inferrer: TimeSeriesInference, max_evals: int = 5, **kwargs) -> None:
+def tuning(inferrer: TimeSeriesInference, artifact_path: Path, max_evals: int = 5, **kwargs) -> None:
     print("\t Loading any saved hyperopt trials")
-    trials = load_trials(ARTIFACT_PATH / "trials.pkl")
+    trials = load_trials(artifact_path / "trials.pkl")
 
     search_space = SEARCH_SPACE
 
@@ -81,7 +82,7 @@ def tuning(inferrer: TimeSeriesInference, max_evals: int = 5, **kwargs) -> None:
     )
 
     print("\t Saving hyperopt trials")
-    with open(ARTIFACT_PATH / "trials.pkl", "wb") as f:
+    with open(artifact_path / "trials.pkl", "wb") as f:
         pickle.dump(trials, f)
 
     # The best results, sorted by the loss
@@ -96,19 +97,45 @@ def main() -> None:
     parser.add_argument(
         "--max_evals", required=False, type=int, default=5, help="Maximum number of sampled sets of parameters "
     )
+    parser.add_argument("--compute_location", required=True, type=str, choices=["local", "gcs"])
+    parser.add_argument(
+        "--simulator_type", required=True, type=str, choices=["double_rho", "herding", "double_herding"]
+    )
     args, *_ = parser.parse_known_args()
+
+    # Choose artifact path based on compute location
+    if args.compute_location == "local":
+        artifact_path = LOCAL_ARTIFACT_PATH
+    elif args.compute_location == "gcs":
+        artifact_path = GCS_ARTIFACT_PATH
+    else:
+        raise ValueError(f"Unknown compute location {args.compute_location}")
 
     mlflow.set_experiment(f"snpe-fully-padded-cnn-timeseries-tuning")
     # Initialize the model and load context - needs to be done whether using local data or doing transforms
     print("\t Initialize inference object")
-    parameter_prior = sbi_utils.BoxUniform(
-        low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
-    )
+    # Parameter prior depends on the type of simulator used
+    if args.simulator_type == "double_rho":
+        parameter_prior = sbi_utils.BoxUniform(
+            low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
+        )
+    elif args.simulator_type == "herding":
+        parameter_prior = sbi_utils.BoxUniform(
+            low=torch.tensor([0.0, 0.0, 0.0]).type(torch.FloatTensor),
+            high=torch.tensor([4.0, 4.0, 1.0]).type(torch.FloatTensor),
+        )
+    elif args.simulator_type == "double_herding":
+        parameter_prior = sbi_utils.BoxUniform(
+            low=torch.tensor([0.0, 0.0, 0.0, 0.0]).type(torch.FloatTensor),
+            high=torch.tensor([4.0, 4.0, 1.0, 1.0]).type(torch.FloatTensor),
+        )
+    else:
+        raise ValueError(f"Unknown simulator type {args.simulator_type}")
     inferrer = TimeSeriesInference(parameter_prior=parameter_prior, device="gpu")
-    inferrer.load_simulator(dirname=ARTIFACT_PATH, simulator_type="double_rho", simulation_type="timeseries")
+    inferrer.load_simulator(dirname=artifact_path, simulator_type="double_rho", simulation_type="timeseries")
 
     print("\t Tuning model")
-    tuning(inferrer=inferrer, max_evals=args.max_evals)
+    tuning(inferrer=inferrer, artifact_path=artifact_path, max_evals=args.max_evals)
 
 
 if __name__ == "__main__":
