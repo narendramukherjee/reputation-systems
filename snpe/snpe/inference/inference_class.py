@@ -44,8 +44,14 @@ class BaseInference:
             params.update({"previous_rating_measure": "mean", "min_reviews_for_herding": 5})
             simulator = simulator_class.HerdingSimulator(params)
         elif self.simulator_type == "double_herding":
-            # 1 additional parameter for the double herding simulator, will be overridden by the loaded simulator
-            params.update({"herding_differentiating_measure": "mean"})
+            # 3 additional parameter for the double herding simulator, will be overridden by the loaded simulator
+            params.update(
+                {
+                    "previous_rating_measure": "mean",
+                    "min_reviews_for_herding": 5,
+                    "herding_differentiating_measure": "mean",
+                }
+            )
             simulator = simulator_class.DoubleHerdingSimulator(params)
         else:
             raise ValueError(
@@ -73,7 +79,7 @@ class BaseInference:
         self.posterior = None  # type: sbi_inference.posteriors.direct_posterior.DirectPosterior
         raise NotImplementedError
 
-    def get_posterior_samples(self, observations: np.array, num_samples: int = 5_000) -> np.array:
+    def get_posterior_samples(self, observations: np.ndarray, num_samples: int = 5_000) -> np.ndarray:
         raise NotImplementedError
 
     def save_inference(self, dirname: Path) -> None:
