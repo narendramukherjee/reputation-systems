@@ -117,17 +117,21 @@ def main() -> None:
     # Parameter prior depends on the type of simulator used
     if args.simulator_type == "double_rho":
         parameter_prior = sbi_utils.BoxUniform(
-            low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor), high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor)
+            low=torch.tensor([0.0, 0.0]).type(torch.FloatTensor),
+            high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor),
+            device="gpu",
         )
     elif args.simulator_type == "herding":
         parameter_prior = sbi_utils.BoxUniform(
             low=torch.tensor([0.0, 0.0, 0.0]).type(torch.FloatTensor),
             high=torch.tensor([4.0, 4.0, 1.0]).type(torch.FloatTensor),
+            device="gpu",
         )
     elif args.simulator_type == "double_herding":
         parameter_prior = sbi_utils.BoxUniform(
             low=torch.tensor([0.0, 0.0, 0.0, 0.0]).type(torch.FloatTensor),
             high=torch.tensor([4.0, 4.0, 1.0, 1.0]).type(torch.FloatTensor),
+            device="gpu",
         )
     else:
         raise ValueError(f"Unknown simulator type {args.simulator_type}")
