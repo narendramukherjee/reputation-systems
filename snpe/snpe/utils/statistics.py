@@ -56,3 +56,19 @@ def review_histogram_correlation(observed_histograms: np.ndarray, simulated_hist
         correlations.append([r_0, r_mean, r_1])
 
     return np.array(correlations)
+
+
+def review_histogram_means(review_histograms: np.array) -> float:
+    # Calculates the average ratings of products from the histograms of their reviews
+    assert (
+        review_histograms.shape[1] == 5
+    ), f"""
+        Expected array of review histograms to have shape (num_samples, 5),
+        found {review_histograms.shape} instead.
+        """
+    # Asserting that all elements of review_histograms are whole numbers (as they are review counts)
+    np.testing.assert_array_equal(review_histograms, review_histograms.astype("int"))
+    review_sums = np.sum(review_histograms * np.arange(1, 6).reshape(1, 5), axis=1)
+    review_counts = np.sum(review_histograms, axis=1)
+    histogram_means = review_sums / review_counts
+    return histogram_means
