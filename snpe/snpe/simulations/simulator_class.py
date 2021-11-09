@@ -99,7 +99,7 @@ class SingleRhoSimulator(BaseSimulator):
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> Union[int, None]:
+    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
         # Convolve the current simulated review distribution with the prior to get the posterior of reviews
         review_posterior = self.convolve_prior_with_existing_reviews(simulated_reviews)
 
@@ -243,14 +243,16 @@ class HerdingSimulator(DoubleRhoSimulator):
             "h_p": np.random.random(size=num_simulations),
         }
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> Union[int, None]:
+    def simulate_visitor_journey(
+        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True, **kwargs
+    ) -> Union[int, None]:
         # Run the visitor journey the same way at first
         rating_index = super(HerdingSimulator, self).simulate_visitor_journey(simulated_reviews, simulation_id)
 
         # If the decision to rate was true, modify the rating index according to the herding procedure
         # Don't initiate the herding procedure till at least the minimum number of reviews have come
-        if (rating_index is not None) and (np.sum(simulated_reviews[-1]) >= self.min_reviews_for_herding):
-            herded_rating_index = self.herding(rating_index, simulated_reviews, simulation_id)
+        if (rating_index is not None) and (np.sum(simulated_reviews) >= self.min_reviews_for_herding):
+            herded_rating_index = self.herding(rating_index, simulated_reviews, simulation_id, use_h_u)
             return herded_rating_index
         # Otherwise just return the original rating index (which is = None in this case)
         else:
@@ -259,16 +261,24 @@ class HerdingSimulator(DoubleRhoSimulator):
     def choose_herding_parameter(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> float:
         return self.simulation_parameters["h_p"][simulation_id]
 
-    def herding(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> int:
+    def herding(
+        self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True
+    ) -> int:
         # Pull out the herding parameter which will be used in this simulation
         # This step is trivial when using a single herding h_p, but becomes important when using 2
         h_p = self.choose_herding_parameter(rating_index, simulated_reviews, simulation_id)
         assert isinstance(h_p, float), f"Expecting a scalar value for the herding parameter, got {h_p} instead"
-        # For the user whose decision to rate is being simulated, generate a herding parameter h_u
-        h_u = np.random.random()
-        # The final herding probability is the product of h_p and h_u
-        # So this user will herd with p=h_p*h_u and not with 1-p
-        if np.random.random() <= h_p * h_u:
+        # If an additional user-specific herding parameter is being used, generate it
+        if use_h_u:
+            # The final herding probability is the product of h_p and h_u
+            # So this user will herd with p=h_p*h_u and not with 1-p
+            h_u = np.random.random()
+            herding_prob = h_p * h_u
+        else:
+            # Otherwise there is only the product-specific herding probability h_p
+            herding_prob = h_p
+        # Simulate the herding process
+        if np.random.random() <= herding_prob:
             # Herding happening
             if self.previous_rating_measure == "mean":
                 # Mean calculation from review histogram - using the indices (0-4) instead of actual ratings (1-5)
