@@ -1,9 +1,11 @@
 import contextlib
+
 from typing import Any
 
 import joblib
 
 
+# https://stackoverflow.com/questions/24983493/tracking-progress-of-joblib-parallel-execution
 # tqdm custom context for joblib jobs
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object) -> Any:
