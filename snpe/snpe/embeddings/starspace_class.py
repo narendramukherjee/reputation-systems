@@ -5,8 +5,11 @@ import sys
 import numpy as np
 import pandas as pd
 
+from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 from snpe.utils.functions import terminal_execute
+from snpe.utils.tqdm_utils import tqdm_joblib
+from tqdm import tqdm
 
 from . import ARTIFACT_PATH, BINARY_PATH, STARSPACE_PARAMS
 
@@ -18,6 +21,7 @@ class StarSpaceEmbedder:
         self.artifact_path = ARTIFACT_PATH
         self.starspace_params = STARSPACE_PARAMS
         self.starspace_params["thread"] = mp.cpu_count()
+        self.trained = False
 
     def process_input_data(self, test_set_frac: float = 0.2) -> None:
         # Load the input data file
@@ -56,18 +60,70 @@ class StarSpaceEmbedder:
 
     def train_starspace(self) -> None:
         # Create the starspace training command
-        command = [f"{str(self.starspace_binary.resolve())}",
-        "train",
-        f"-trainFile", f"{str(self.train_path.resolve())}",
-        f"-validationFile", f"{str(self.test_path.resolve())}",
-        f"-label", "product",
-        f"-model", f"{str(self.starspace_output.resolve())}"]
+        command = [
+            f"{str(self.starspace_binary.resolve())}",
+            "train",
+            f"-trainFile",
+            f"{str(self.train_path.resolve())}",
+            f"-validationFile",
+            f"{str(self.test_path.resolve())}",
+            f"-label",
+            "product",
+            f"-model",
+            f"{str(self.starspace_output.resolve())}",
+        ]
         for key, val in self.starspace_params.items():
             command += [f"-{key}", f"{val}"]
 
         # Run the starspace command
         print(f"StarSpace command to be run: \n {' '.join(command)}")
-        #child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        #print(child.stdout.read())
+        # child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # print(child.stdout.read())
         for path in terminal_execute(command):
             print(path, end="")
+        self.trained = True
+
+    def avg_products_for_user_embedding(
+        self, user: int, pageview_train: pd.DataFrame, product_embeddings: pd.DataFrame
+    ) -> np.ndarray:
+        # average the embeddings of the products each user has viewed. This "average" embedding is the user embedding
+        products_viewed = str.split(pageview_train.iloc[user, 0], " ")
+        user_embedding = np.mean(product_embeddings.loc[products_viewed], axis=0)
+        return user_embedding
+
+    def get_user_embeddings(self) -> None:
+        # This is a helper method that will get the user embeddings from the trained product embeddings
+        # User embedding is the average of the embeddings of "products fanned by the user" according
+        # to the StarSpace model
+        assert self.trained, "Starspace model needs to be trained before user embeddings are calculated"
+
+        # Load up the trained product embeddings
+        product_embeddings = pd.read_csv(ARTIFACT_PATH / "productspace.tsv", sep="\t", header=None)
+        # Product names will be used as index, so that it is easier to extract embeddings from this DF
+        product_embeddings.set_index(0, inplace=True)
+
+        # Load up the training dataset of user pageviews/product views
+        pageview_train = pd.read_csv(self.train_path, header=None)
+        # Number of users = number of rows in the pageviews data
+        num_users = pageview_train.shape[0]
+        num_dimensions = product_embeddings.shape[1]
+        user_embeddings = np.empty((num_users, num_dimensions))
+        # Now run through the user pageviews, and get embeddings for each of them in parallel
+        with tqdm_joblib(tqdm(desc="User embeddings", total=num_users)) as _:
+            user_embeddings = Parallel(n_jobs=mp.cpu_count())(
+                delayed(self.avg_products_for_user_embedding)(i, pageview_train, product_embeddings)
+                for i in range(num_users)
+            )
+        user_embeddings = np.array(user_embeddings)
+        assert user_embeddings.shape == (
+            num_users,
+            num_dimensions,
+        ), f"""
+            Final array of user embeddings has shape {user_embeddings.shape}, expected {(num_users, num_dimensions)}
+            """
+
+        # Finally convert this numpy array of user embeddings to a dataframe and save it the same way
+        # as the product embeddings
+        user_embeddings = pd.DataFrame(user_embeddings, columns=None, index=None)
+        self.user_embedding_path = ARTIFACT_PATH / "userspace.tsv"
+        user_embeddings.to_csv(self.user_embedding_path, index=False, header=False, sep="\t")
