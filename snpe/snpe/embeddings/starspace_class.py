@@ -83,14 +83,6 @@ class StarSpaceEmbedder:
             print(path, end="")
         self.trained = True
 
-    def avg_products_for_user_embedding(
-        self, user: int, pageview_train: pd.DataFrame, product_embeddings: pd.DataFrame
-    ) -> np.ndarray:
-        # average the embeddings of the products each user has viewed. This "average" embedding is the user embedding
-        products_viewed = str.split(pageview_train.iloc[user, 0], " ")
-        user_embedding = np.mean(product_embeddings.loc[products_viewed], axis=0)
-        return user_embedding
-
     def get_user_embeddings(self) -> None:
         # This is a helper method that will get the user embeddings from the trained product embeddings
         # User embedding is the average of the embeddings of "products fanned by the user" according
@@ -108,19 +100,11 @@ class StarSpaceEmbedder:
         num_users = pageview_train.shape[0]
         num_dimensions = product_embeddings.shape[1]
         user_embeddings = np.empty((num_users, num_dimensions))
-        # Now run through the user pageviews, and get embeddings for each of them in parallel
-        with tqdm_joblib(tqdm(desc="User embeddings", total=num_users)) as _:
-            user_embeddings = Parallel(n_jobs=mp.cpu_count())(
-                delayed(self.avg_products_for_user_embedding)(i, pageview_train, product_embeddings)
-                for i in range(num_users)
-            )
-        user_embeddings = np.array(user_embeddings)
-        assert user_embeddings.shape == (
-            num_users,
-            num_dimensions,
-        ), f"""
-            Final array of user embeddings has shape {user_embeddings.shape}, expected {(num_users, num_dimensions)}
-            """
+        # Now run through the user pageviews, and get embeddings for each of them
+        # average the embeddings of the products each user has viewed. This "average" embedding is the user embedding
+        for user in tqdm(range(num_users), desc="User embeddings"):
+            products_viewed = str.split(pageview_train.iloc[user, 0], " ")
+            user_embeddings[user] = np.mean(product_embeddings.loc[products_viewed], axis=0)
 
         # Finally convert this numpy array of user embeddings to a dataframe and save it the same way
         # as the product embeddings
