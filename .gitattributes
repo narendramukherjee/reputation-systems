@@ -16,3 +16,6 @@ snpe/artifacts/ICWSM/figures/rho_vs_log_revs.svg filter=lfs diff=lfs merge=lfs -
 snpe/artifacts/hyperparameter_tuning/cnn_tuning/trials.pkl filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/hyperparameter_tuning/cnn_tuning/mlruns.zip filter=lfs diff=lfs merge=lfs -text
 snpe/artifacts/hyperparameter_tuning/cnn_tuning/TimeSeriesInference_double_rho.pkl filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/marketplace/pageview_strings.txt filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/marketplace/pageview_train.txt filter=lfs diff=lfs merge=lfs -text
+snpe/artifacts/marketplace/pageview_test.txt filter=lfs diff=lfs merge=lfs -text
