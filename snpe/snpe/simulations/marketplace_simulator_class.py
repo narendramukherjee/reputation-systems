@@ -10,6 +10,8 @@ import pandas as pd
 from joblib import Parallel, delayed
 from numpy.random import default_rng
 from scipy.spatial.distance import cdist
+from snpe.embeddings.embeddings_density_est_GMM import EmbeddingDensityGMM
+from snpe.embeddings.embeddings_to_ratings import EmbeddingRatingPredictor
 from snpe.utils.statistics import review_histogram_means
 from snpe.utils.tqdm_utils import tqdm_joblib
 from tqdm import tqdm
@@ -24,14 +26,13 @@ class MarketplaceSimulator(HerdingSimulator):
         self.consideration_set_size = params["consideration_set_size"]
         super(MarketplaceSimulator, self).__init__(params)
 
-    def load_embedding_density_estimators(self, dirname: Path = None) -> None:
-        embedding_density_estimators = {"products": default_rng(), "visitors": default_rng()}
-        product_embedding = embedding_density_estimators["products"].multivariate_normal(
-            np.zeros(100), np.diag(np.ones(100))
-        )
-        visitor_embedding = embedding_density_estimators["visitors"].multivariate_normal(
-            np.zeros(100), np.diag(np.ones(100))
-        )
+    def load_embedding_density_estimators(self) -> None:
+        self.embedding_density_estimator = EmbeddingDensityGMM()
+        self.embedding_density_estimator.load()
+        print(f"Loaded product embedding density estimator: \n {self.embedding_density_estimator.product_model}")
+        print(f"Loaded user embedding density estimator: \n {self.embedding_density_estimator.user_model}")
+        product_embedding, _ = self.embedding_density_estimator.product_model.sample()
+        visitor_embedding, _ = self.embedding_density_estimator.user_model.sample()
         assert (
             product_embedding.shape == visitor_embedding.shape
         ), f"""
@@ -39,7 +40,11 @@ class MarketplaceSimulator(HerdingSimulator):
             embedding generator produces embeddings of shape {visitor_embedding.shape}. They need to have the
             same shape to be able to calculate cosine similarities between them.
             """
-        self.embedding_density_estimators = embedding_density_estimators
+
+    def load_embedding_rating_predictor(self) -> None:
+        self.embedding_rating_predictor = EmbeddingRatingPredictor()
+        self.embedding_rating_predictor.load()
+        print(f"Loaded embedding -> rating predictor model: \n {self.embedding_rating_predictor.model}")
 
     def simulate_review_histogram(
         self, simulation_id: int, num_reviews_per_simulation: Optional[np.ndarray] = None
@@ -61,6 +66,7 @@ class MarketplaceSimulator(HerdingSimulator):
         # Total number of simulations = total number of marketplaces x num products per marketplace
         self.simulation_parameters = self.generate_simulation_parameters(num_simulations * self.num_products)
         self.load_embedding_density_estimators()
+        self.load_embedding_rating_predictor()
         with tqdm_joblib(tqdm(desc="Simulations", total=num_simulations)) as _:
             simulations = Parallel(n_jobs=mp.cpu_count())(
                 delayed(self.simulate_marketplace)(i) for i in range(num_simulations)
@@ -92,9 +98,7 @@ class MarketplaceSimulator(HerdingSimulator):
         return consideration_set[choice_index]
 
     def simulate_visitor_choice(self, product_embeddings: np.ndarray, simulated_reviews: List[Deque]) -> int:
-        visitor_embedding = self.embedding_density_estimators["visitors"].multivariate_normal(
-            np.zeros(100), np.diag(np.ones(100))
-        )
+        visitor_embedding, _ = self.embedding_density_estimator.user_model.sample()
         # cdist calculates the "cosine distance", i.e, 1 - cos_sim. So cos_sim = 1 - cdist
         cos_sim = 1.0 - cdist(product_embeddings, visitor_embedding.reshape(1, -1), metric="cosine")
         cos_sim = cos_sim.flatten()  # can flatten as only 1 visitor was compared to all products
@@ -110,9 +114,7 @@ class MarketplaceSimulator(HerdingSimulator):
         # "cold start" problem when avg. rating needs to be calculated for products that have not accumulated
         # ratings yet
         simulated_reviews = [deque([np.ones(5)], maxlen=total_visitors) for prod in range(self.num_products)]
-        product_embeddings = self.embedding_density_estimators["products"].multivariate_normal(
-            np.zeros(100), np.diag(np.ones(100)), size=self.num_products
-        )
+        product_embeddings, _ = self.embedding_density_estimator.product_model.sample(n_samples=self.num_products)
         # Maintain a counter of total ratings on the platform - this total ignores the 1st 5 reviews
         # added to all products by default
         current_total_marketplace_reviews = 0

@@ -47,7 +47,7 @@ class BaseSimulator:
     ) -> np.ndarray:
         raise NotImplementedError
 
-    def mismatch_calculator(self, experience: float, expected_experience_dist_mean: float) -> float:
+    def mismatch_calculator(self, experience: float, expected_experience: float) -> float:
         raise NotImplementedError
 
     def rating_calculator(self, delta: float) -> int:
@@ -99,6 +99,8 @@ class SingleRhoSimulator(BaseSimulator):
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
+    def get_actual_experience(self, ) -> int:
+
     def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
         # Convolve the current simulated review distribution with the prior to get the posterior of reviews
         review_posterior = self.convolve_prior_with_existing_reviews(simulated_reviews)
@@ -107,13 +109,13 @@ class SingleRhoSimulator(BaseSimulator):
         # of the product experiences that the user expects
         expected_experience_dist = np.random.dirichlet(review_posterior)
         # Also get the mean "experience" that the user expects
-        expected_experience_dist_mean = np.sum(expected_experience_dist * np.arange(1, 6))
+        expected_experience = np.sum(expected_experience_dist * np.arange(1, 6))
         # Draw an experience from the user's expected distribution of experiences
         experience = np.where(np.random.multinomial(1, expected_experience_dist))[0][0] + 1.0
 
         # User's mismatch is the difference between their actual experience and the mean of the distribution
         # of experiences they expected
-        delta = self.mismatch_calculator(experience, expected_experience_dist_mean)
+        delta = self.mismatch_calculator(experience, expected_experience)
 
         # Calculate the index of the rating the user wants to leave [0, 4]
         rating_index = self.rating_calculator(delta)
@@ -126,17 +128,17 @@ class SingleRhoSimulator(BaseSimulator):
         else:
             return None
 
-    def mismatch_calculator(self, experience: float, expected_experience_dist_mean: float) -> float:
+    def mismatch_calculator(self, experience: float, expected_experience: float) -> float:
         assert experience in np.arange(
             1, 6, 1
         ), f"User's experience should be a whole number in [1, 5], got {experience} instead"
         assert (
-            expected_experience_dist_mean >= 1.0 and expected_experience_dist_mean <= 5.0
+            expected_experience >= 1.0 and expected_experience_dist_mean <= 5.0
         ), f"""
         Mean of user's expected distribution of experiences is a float in [1, 5],
-        got {expected_experience_dist_mean} instead
+        got {expected_experience} instead
         """
-        return experience - expected_experience_dist_mean
+        return experience - expected_experience
 
     def rating_calculator(self, delta: float) -> int:
         if delta <= -1.5:
@@ -247,7 +249,7 @@ class HerdingSimulator(DoubleRhoSimulator):
         self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True, **kwargs
     ) -> Union[int, None]:
         # Run the visitor journey the same way at first
-        rating_index = super(HerdingSimulator, self).simulate_visitor_journey(simulated_reviews, simulation_id)
+        rating_index = super(HerdingSimulator, self).simulate_visitor_journey(simulated_reviews, simulation_id, **kwargs)
 
         # If the decision to rate was true, modify the rating index according to the herding procedure
         # Don't initiate the herding procedure till at least the minimum number of reviews have come
