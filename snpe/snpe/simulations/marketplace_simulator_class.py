@@ -1,20 +1,20 @@
 import multiprocessing as mp
 
 from collections import deque
-from pathlib import Path
+from multiprocessing import Manager, Queue
+from threading import Thread
 from typing import Deque, List, Optional
 
 import numpy as np
 import pandas as pd
+import torch
 
 from joblib import Parallel, delayed
-from numpy.random import default_rng
 from scipy.spatial.distance import cdist
 from snpe.embeddings.embeddings_density_est_GMM import EmbeddingDensityGMM
 from snpe.embeddings.embeddings_to_ratings import EmbeddingRatingPredictor
 from snpe.utils.statistics import review_histogram_means
-from snpe.utils.tqdm_utils import tqdm_joblib
-from tqdm import tqdm
+from snpe.utils.tqdm_utils import multi_progressbar
 
 from .simulator_class import HerdingSimulator
 
@@ -67,10 +67,17 @@ class MarketplaceSimulator(HerdingSimulator):
         self.simulation_parameters = self.generate_simulation_parameters(num_simulations * self.num_products)
         self.load_embedding_density_estimators()
         self.load_embedding_rating_predictor()
-        with tqdm_joblib(tqdm(desc="Simulations", total=num_simulations)) as _:
-            simulations = Parallel(n_jobs=mp.cpu_count())(
-                delayed(self.simulate_marketplace)(i) for i in range(num_simulations)
-            )
+        # Now set up the multi-progressbar in a separate Manager and queue that can be accessed by
+        # all the processes
+        manager = Manager()
+        queue = manager.Queue()
+        progproc = Thread(
+            target=multi_progressbar, args=([self.num_total_marketplace_reviews for _ in range(mp.cpu_count())], queue)
+        )
+        progproc.start()
+        simulations = Parallel(n_jobs=mp.cpu_count())(
+            delayed(self.simulate_marketplace)(i, queue) for i in range(num_simulations)
+        )
         self.simulations = np.array(simulations)
 
     def multinomial_choice(
@@ -108,13 +115,23 @@ class MarketplaceSimulator(HerdingSimulator):
         chosen_product = self.multinomial_choice(consideration_set, cos_sim, simulated_reviews)
         return chosen_product
 
-    def simulate_marketplace(self, marketplace_id: int) -> np.ndarray:
+    def predict_ratings_from_embeddings(self, product_embeddings: np.ndarray) -> np.ndarray:
+        # Set the neural network in eval mode
+        self.embedding_rating_predictor.model.eval()
+        # Convert the embeddings to torch tensor to be used for predictions
+        product_embeddings = torch.from_numpy(product_embeddings).type(torch.FloatTensor)
+        with torch.no_grad():
+            pred_ratings = self.embedding_rating_predictor.model(product_embeddings).detach().numpy()
+        return pred_ratings
+
+    def simulate_marketplace(self, marketplace_id: int, queue: Queue) -> np.ndarray:
         total_visitors = self.num_total_marketplace_reviews * 30
         # Each product gets 5 reviews, 1 for each star to start off. This is necessary to prevent the
         # "cold start" problem when avg. rating needs to be calculated for products that have not accumulated
         # ratings yet
         simulated_reviews = [deque([np.ones(5)], maxlen=total_visitors) for prod in range(self.num_products)]
         product_embeddings, _ = self.embedding_density_estimator.product_model.sample(n_samples=self.num_products)
+        pred_product_ratings = self.predict_ratings_from_embeddings(product_embeddings.copy())
         # Maintain a counter of total ratings on the platform - this total ignores the 1st 5 reviews
         # added to all products by default
         current_total_marketplace_reviews = 0
@@ -127,12 +144,19 @@ class MarketplaceSimulator(HerdingSimulator):
             # Now we need to calculate the right simulation_id based on the product and marketplace
             # as in the marketplace simulation, parameters run from 0 to num_marketplaces X num_products
             simulation_id = (marketplace_id * self.num_products) + chosen_product
-            rating_index = self.simulate_visitor_journey(simulated_reviews[chosen_product][-1], simulation_id, False)
+            rating_index = self.simulate_visitor_journey(
+                simulated_reviews=simulated_reviews[chosen_product][-1],
+                simulation_id=simulation_id,
+                use_h_u=False,
+                product_final_ratings=pred_product_ratings[chosen_product, :],
+            )
             if rating_index is not None:
                 current_histogram = simulated_reviews[chosen_product][-1].copy()
                 current_histogram[rating_index] += 1
                 simulated_reviews[chosen_product].append(current_histogram)
                 current_total_marketplace_reviews += 1
+                # Also put progress on the multi-progressbar if a new rating was accumulated
+                queue.put(f"update{marketplace_id}")
             if current_total_marketplace_reviews >= self.num_total_marketplace_reviews:
                 break
 
@@ -142,4 +166,25 @@ class MarketplaceSimulator(HerdingSimulator):
         if self.simulation_type == "histogram":
             return np.array([np.array(timeseries[-1]) for timeseries in simulated_reviews])
         else:
-            return np.array([np.array(timeseries) for timeseries in simulated_reviews])
+            return np.array([np.array(timeseries) for timeseries in simulated_reviews], dtype=object)
+
+    def get_actual_experience(self, expected_experience_dist: np.ndarray, **kwargs) -> int:
+        # During marketplace simulations, we need the product's predicted final ratings to get the user's actual
+        # experiences
+        pred_product_ratings = kwargs.pop("product_final_ratings")
+        assert pred_product_ratings.shape == (
+            5,
+        ), f"""
+        Expected a predicted distribution of ratings of shape (5,), got {pred_product_ratings.shape} instead
+        """
+        assert np.all(
+            pred_product_ratings > 0
+        ), f"""
+        Found predicted distribution of ratings to have values <=0, check the embeddings -> ratings predictor
+        """
+        # Make a Dirichlet draw from this predicted_distribution of ratings
+        actual_experience_dist = np.random.dirichlet(pred_product_ratings)
+        # Then do a multinomial draw to get the actual experience
+        actual_experience = np.where(np.random.multinomial(1, actual_experience_dist))[0][0] + 1.0
+
+        return actual_experience

@@ -39,7 +39,7 @@ class BaseSimulator:
         ), "Prior and simulated distributions of reviews should have the same shape"
         return self.review_prior + simulated_reviews
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int) -> Union[int, None]:
+    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
         raise NotImplementedError
 
     def simulate_review_histogram(
@@ -99,7 +99,12 @@ class SingleRhoSimulator(BaseSimulator):
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
         return {"rho": np.random.random(size=num_simulations) * 4}
 
-    def get_actual_experience(self, ) -> int:
+    def get_actual_experience(self, expected_experience_dist: np.ndarray, **kwargs) -> int:
+        # This method is separated out so that during marketplace simulations, a more
+        # involved process of getting the actual experience (through product embeddings) can be used
+        # For the general single rho simulator, actual experience is just a draw from the expected
+        # distribution of experiences
+        return np.where(np.random.multinomial(1, expected_experience_dist))[0][0] + 1.0
 
     def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
         # Convolve the current simulated review distribution with the prior to get the posterior of reviews
@@ -107,11 +112,12 @@ class SingleRhoSimulator(BaseSimulator):
 
         # Just make a single draw from the posterior Dirichlet dist of reviews to get the distribution
         # of the product experiences that the user expects
+        # Thus the expected experience is built out of the current distribution of reviews the user can see
         expected_experience_dist = np.random.dirichlet(review_posterior)
         # Also get the mean "experience" that the user expects
         expected_experience = np.sum(expected_experience_dist * np.arange(1, 6))
-        # Draw an experience from the user's expected distribution of experiences
-        experience = np.where(np.random.multinomial(1, expected_experience_dist))[0][0] + 1.0
+        # Get the user's actual experience
+        experience = self.get_actual_experience(expected_experience_dist, **kwargs)
 
         # User's mismatch is the difference between their actual experience and the mean of the distribution
         # of experiences they expected
@@ -133,7 +139,7 @@ class SingleRhoSimulator(BaseSimulator):
             1, 6, 1
         ), f"User's experience should be a whole number in [1, 5], got {experience} instead"
         assert (
-            expected_experience >= 1.0 and expected_experience_dist_mean <= 5.0
+            expected_experience >= 1.0 and expected_experience <= 5.0
         ), f"""
         Mean of user's expected distribution of experiences is a float in [1, 5],
         got {expected_experience} instead
