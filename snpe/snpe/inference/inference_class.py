@@ -1,3 +1,4 @@
+import itertools
 import multiprocessing as mp
 import pickle
 
@@ -10,7 +11,7 @@ import sbi.inference as sbi_inference
 import sklearn
 import torch
 
-from snpe.simulations import simulator_class
+from snpe.simulations import marketplace_simulator_class, simulator_class
 from snpe.utils.data_transforms import pad_timeseries_for_cnn
 from snpe.utils.embedding_nets import get_cnn_1d
 
@@ -53,10 +54,23 @@ class BaseInference:
                 }
             )
             simulator = simulator_class.DoubleHerdingSimulator(params)
+        elif self.simulator_type == "marketplace":
+            # The additional parametes for the marketplace simulator, will be overridden by the loaded simulator
+            params.update(
+                {
+                    "previous_rating_measure": "mean",
+                    "min_reviews_for_herding": 5,
+                    "herding_differentiating_measure": "mean",
+                    "num_products": 1400,
+                    "num_total_marketplace_reviews": 140_000,
+                    "consideration_set_size": 5,
+                }
+            )
+            simulator = marketplace_simulator_class.MarketplaceSimulator(params)
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
                 found {self.simulator_type} instead
                 """
             )
@@ -117,6 +131,13 @@ class HistogramInference(BaseInference):
         num_transforms: int = 5,
     ) -> None:
         # Convert the simulations and parameters to pytorch tensors to use with sbi
+        # For marketplace simulations, we need the extra step of unravelling the simulations from shape
+        # (num_marketplaces X num_products, ) to shape (num_simulations, )
+        if self.simulator_type == "marketplace":
+            # https://mathieularose.com/how-not-to-flatten-a-list-of-lists-in-python
+            self.simulator.simulations = np.array(
+                list(itertools.chain.from_iterable(self.simulator.simulations)), dtype=object
+            )
         if simulation_transform is not None:
             simulations = simulation_transform(self.simulator.simulations)
         else:
@@ -127,7 +148,7 @@ class HistogramInference(BaseInference):
         # Get the simulation parameters
         if self.simulator_type in ("single_rho", "double_rho"):
             parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
-        elif self.simulator_type == "single_herding":
+        elif self.simulator_type in ("single_herding", "marketplace"):
             parameters = np.hstack(
                 (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"][:, None])
             )
@@ -144,7 +165,7 @@ class HistogramInference(BaseInference):
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
                 found {self.simulator_type} instead
                 """
             )
@@ -190,7 +211,7 @@ class HistogramInference(BaseInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type == "single_herding":
+        elif self.simulator_type in ("single_herding", "marketplace"):
             num_parameters = 3
         elif self.simulator_type == "double_herding":
             num_parameters = 4

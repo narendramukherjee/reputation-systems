@@ -4,13 +4,27 @@ Statistical/metric calculation related utils
 
 import arviz
 import numpy as np
+import torch
 
 from scipy.stats import pearsonr
+from torch.special import digamma, gammaln
 
 
-def dirichlet_kl_divergence() -> np.ndarray:
+def dirichlet_kl_divergence(alpha: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     # Calculates the KL divergences between 2 sets of dirichlet distributions describing review histograms
-    raise NotImplementedError
+    # This is implemented in torch as it is used while training a NN to predict review histograms from product embeddings
+    # In case alpha and beta have only 1 dimension, raise an assertion error as this method expects 2-D tensors
+    # Dim 0 contains separate dirichlet distributions, while dim 1 has the conc. parameters of each of those separate dists
+    assert len(alpha.size()) == 2, f"Expected 2 dims in alpha, found: {alpha.size()}"
+    assert len(beta.size()) == 2, f"Expected 2 dims in beta, found: {beta.size()}"
+    # https://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/
+    return (
+        gammaln(alpha.sum(axis=1))
+        - torch.sum(gammaln(alpha), axis=1)
+        - gammaln(beta.sum(axis=1))
+        + torch.sum(gammaln(beta), axis=1)
+        + torch.sum((alpha - beta) * (digamma(alpha) - digamma(alpha.sum(axis=1))[:, None]), axis=1,)
+    )
 
 
 def review_histogram_correlation(observed_histograms: np.ndarray, simulated_histograms: np.ndarray) -> np.ndarray:
@@ -56,3 +70,19 @@ def review_histogram_correlation(observed_histograms: np.ndarray, simulated_hist
         correlations.append([r_0, r_mean, r_1])
 
     return np.array(correlations)
+
+
+def review_histogram_means(review_histograms: np.ndarray) -> float:
+    # Calculates the average ratings of products from the histograms of their reviews
+    assert (
+        review_histograms.shape[1] == 5
+    ), f"""
+        Expected array of review histograms to have shape (num_samples, 5),
+        found {review_histograms.shape} instead.
+        """
+    # Asserting that all elements of review_histograms are whole numbers (as they are review counts)
+    np.testing.assert_array_equal(review_histograms, review_histograms.astype("int"))
+    review_sums = np.sum(review_histograms * np.arange(1, 6).reshape(1, 5), axis=1)
+    review_counts = np.sum(review_histograms, axis=1)
+    histogram_means = review_sums / review_counts
+    return histogram_means

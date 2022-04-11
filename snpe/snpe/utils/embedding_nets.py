@@ -1,5 +1,4 @@
-from typing import List
-
+import numpy as np
 import torch
 
 
@@ -55,3 +54,40 @@ def get_cnn_1d(
         )
 
     return torch.nn.Sequential(*cnn_modules)
+
+
+def fc_rating_predictor(prod_embedding_dim: int = 100, num_dense_layers: int = 4, logsoftmax: bool = False) -> torch.nn.Module:
+    modules = []  # type: List[torch.nn.Module]
+    # Append the first fully connected layer
+    # The second last layer of the network is fixed with 64 hidden units
+    modules.append(torch.nn.Linear(prod_embedding_dim, 64 * (2 ** (num_dense_layers - 2))))
+    for layer in range(2, num_dense_layers):
+        modules.append(torch.nn.LeakyReLU())
+        modules.append(
+            torch.nn.Linear(64 * (2 ** (num_dense_layers - layer)), 64 * (2 ** (num_dense_layers - layer - 1)))
+        )
+    # The last layer of the network goes from 64 hidden units to 5 outputs (one for each rating count)
+    modules.append(torch.nn.LeakyReLU())
+    modules.append(torch.nn.Linear(64, 5))
+    # Finally append a logsoftmax layer in case rating fractions are being predicted instead of actual counts
+    if logsoftmax:
+        modules.append(torch.nn.LogSoftmax(dim=1))
+
+    return torch.nn.Sequential(*modules)
+
+
+class RatingPredictorModel(torch.nn.Module):
+    def __init__(self, predict_fractions: bool = False, prod_embedding_dim: int = 100):
+        super(RatingPredictorModel, self).__init__()
+        self.predict_fractions = predict_fractions
+        self.net = fc_rating_predictor(prod_embedding_dim=prod_embedding_dim, logsoftmax=predict_fractions)
+        self.best_model = None
+        self.best_validation_loss = np.inf
+        self.epochs_since_last_improvement = 0
+
+    def forward(self, x):
+        y_pred = self.net(x)
+        # Exponentiate the outputs to ensure they are > 0 in case raw counts are being predicted, and not fractions
+        if not self.predict_fractions:
+            y_pred = torch.exp(y_pred)
+        return y_pred

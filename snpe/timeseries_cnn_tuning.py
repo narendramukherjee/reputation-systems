@@ -14,7 +14,9 @@ from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, tpe
 from snpe.inference.inference_class import TimeSeriesInference
 
 LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
-GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/double_herding_simulator")
+# GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/double_herding_simulator")
+GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/marketplace")
+
 
 SEARCH_SPACE = {
     "batch_size": hp.choice("batch_size", [32, 64, 128, 256]),
@@ -100,7 +102,7 @@ def main() -> None:
     )
     parser.add_argument("--compute_location", required=True, type=str, choices=["local", "gcs"])
     parser.add_argument(
-        "--simulator_type", required=True, type=str, choices=["double_rho", "herding", "double_herding"]
+        "--simulator_type", required=True, type=str, choices=["double_rho", "herding", "double_herding", "marketplace"]
     )
     args, *_ = parser.parse_known_args()
 
@@ -122,7 +124,7 @@ def main() -> None:
             high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor),
             device="cuda",
         )
-    elif args.simulator_type == "herding":
+    elif args.simulator_type in ("herding", "marketplace"):
         parameter_prior = sbi_utils.BoxUniform(
             low=torch.tensor([0.0, 0.0, 0.0]).type(torch.FloatTensor),
             high=torch.tensor([4.0, 4.0, 1.0]).type(torch.FloatTensor),
