@@ -76,6 +76,13 @@ class BaseInference:
             )
 
         simulator.load_simulator(dirname)
+        # For marketplace simulations, we need the extra step of unravelling the simulations from shape
+        # (num_marketplaces X num_products, ) to shape (num_simulations, )
+        if self.simulator_type == "marketplace":
+            # https://mathieularose.com/how-not-to-flatten-a-list-of-lists-in-python
+            simulator.simulations = np.array(
+                list(itertools.chain.from_iterable(simulator.simulations)), dtype=object
+            )
         self.simulator = simulator
 
     def infer_snpe_posterior(
@@ -131,13 +138,6 @@ class HistogramInference(BaseInference):
         num_transforms: int = 5,
     ) -> None:
         # Convert the simulations and parameters to pytorch tensors to use with sbi
-        # For marketplace simulations, we need the extra step of unravelling the simulations from shape
-        # (num_marketplaces X num_products, ) to shape (num_simulations, )
-        if self.simulator_type == "marketplace":
-            # https://mathieularose.com/how-not-to-flatten-a-list-of-lists-in-python
-            self.simulator.simulations = np.array(
-                list(itertools.chain.from_iterable(self.simulator.simulations)), dtype=object
-            )
         if simulation_transform is not None:
             simulations = simulation_transform(self.simulator.simulations)
         else:
