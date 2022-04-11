@@ -4,7 +4,8 @@ from multiprocessing import Queue
 from typing import Any, List
 
 import joblib
-import tqdm
+
+from tqdm.auto import tqdm
 
 
 # https://stackoverflow.com/questions/24983493/tracking-progress-of-joblib-parallel-execution

@@ -67,6 +67,11 @@ class MarketplaceSimulator(HerdingSimulator):
         self.simulation_parameters = self.generate_simulation_parameters(num_simulations * self.num_products)
         self.load_embedding_density_estimators()
         self.load_embedding_rating_predictor()
+        # Change the random_state of the embedding density estimators to None
+        # This is needed to get distinct embeddings during sampling, otherwise all marketplaces and users end up
+        # being the same
+        self.embedding_density_estimator.product_model.set_params(**{"random_state": None})
+        self.embedding_density_estimator.user_model.set_params(**{"random_state": None})
         # Now set up the multi-progressbar in a separate Manager and queue that can be accessed by
         # all the processes
         manager = Manager()

@@ -72,7 +72,7 @@ def review_histogram_correlation(observed_histograms: np.ndarray, simulated_hist
     return np.array(correlations)
 
 
-def review_histogram_means(review_histograms: np.array) -> float:
+def review_histogram_means(review_histograms: np.ndarray) -> float:
     # Calculates the average ratings of products from the histograms of their reviews
     assert (
         review_histograms.shape[1] == 5
