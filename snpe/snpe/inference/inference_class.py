@@ -19,7 +19,7 @@ from snpe.utils.embedding_nets import get_cnn_1d
 class BaseInference:
     def __init__(self, parameter_prior: torch.distributions.Distribution, device: str = "cpu"):
         self.parameter_prior = parameter_prior
-        assert device in ["cpu", "gpu"], f"Device needs to be cpu or gpu, unknown device {device} provided"
+        assert device in ["cpu", "cuda"], f"Device needs to be cpu or gpu, unknown device {device} provided"
         self.device = device
         if self.device == "cpu":
             torch.set_num_threads(mp.cpu_count())
@@ -196,7 +196,7 @@ class HistogramInference(BaseInference):
         )
         # In case model training was done on gpu, remember to move the neural net to cpu before
         # building the posterior or getting metrics
-        if self.device == "gpu":
+        if self.device == "cuda":
             inference._neural_net.to(device="cpu")
         # Get the training related metrics
         self.best_validation_log_prob = inference._summary["best_validation_log_probs"][-1]
