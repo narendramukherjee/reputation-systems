@@ -13,8 +13,9 @@ import torch
 from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, tpe
 from snpe.inference.inference_class import TimeSeriesInference
 
-LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
+# LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
 # GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/double_herding_simulator")
+LOCAL_ARTIFACT_PATH = Path("./artifacts/marketplace")
 GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/marketplace")
 
 
