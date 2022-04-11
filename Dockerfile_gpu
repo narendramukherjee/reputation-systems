@@ -1,5 +1,4 @@
 FROM gcr.io/deeplearning-platform-release/pytorch-gpu
-LABEL maintainer="Narendra Mukherjee <narendra.mukherjee@gmail.com>"
 
 # Install other required packages
 RUN pip install sbi hyperopt mlflow tqdm arviz black nb_black pyreadr mypy

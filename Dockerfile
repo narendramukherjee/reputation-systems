@@ -1,5 +1,4 @@
 FROM continuumio/anaconda3
-LABEL maintainer="Narendra Mukherjee <narendra.mukherjee@gmail.com>"
 
 # Install utils needed for starspace
 RUN apt-get update && apt-get install -y apt-utils build-essential && \
