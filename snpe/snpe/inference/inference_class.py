@@ -19,7 +19,7 @@ from snpe.utils.embedding_nets import get_cnn_1d
 class BaseInference:
     def __init__(self, parameter_prior: torch.distributions.Distribution, device: str = "cpu"):
         self.parameter_prior = parameter_prior
-        assert device in ["cpu", "cuda"], f"Device needs to be cpu or gpu, unknown device {device} provided"
+        assert device in ["cpu", "cuda"], f"Device needs to be cpu or cuda, unknown device {device} provided"
         self.device = device
         if self.device == "cpu":
             torch.set_num_threads(mp.cpu_count())
@@ -287,7 +287,7 @@ class TimeSeriesInference(HistogramInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type == "single_herding":
+        elif self.simulator_type in ("single_herding", "marketplace"):
             num_parameters = 3
         elif self.simulator_type == "double_herding":
             num_parameters = 4
