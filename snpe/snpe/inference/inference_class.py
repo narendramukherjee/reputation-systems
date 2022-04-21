@@ -301,7 +301,12 @@ class TimeSeriesInference(HistogramInference):
         posterior_samples = np.empty((num_samples, observations.size()[0], num_parameters), dtype=np.float64)
 
         for row in range(observations.size()[0]):
-            posterior_samples[:, row, :] = self.posterior.sample(
-                (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
-            ).numpy()
+            if self.device == "cuda":
+                posterior_samples[:, row, :] = self.posterior.sample(
+                    (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
+                ).cpu().numpy()
+            else:
+                posterior_samples[:, row, :] = self.posterior.sample(
+                    (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
+                ).numpy()
         return posterior_samples
