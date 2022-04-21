@@ -273,7 +273,7 @@ class TimeSeriesInference(HistogramInference):
         # Concatenate the input observations with the simulator's array of simulations so that they can be passed
         # together to the padding function. We will then pull out the padded observations from this joint array
         concat_simulations = np.concatenate((self.simulator.simulations, observations), axis=0)
-        padded_concat_simulations = pad_timeseries_for_cnn(concat_simulations)
+        padded_concat_simulations = pad_timeseries_for_cnn(concat_simulations, device=self.device)
         assert (
             self.padded_simulation_length == padded_concat_simulations.size()[-1]
         ), f"""

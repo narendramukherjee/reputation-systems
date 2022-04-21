@@ -2,14 +2,14 @@ import numpy as np
 import torch
 
 
-def pad_timeseries_for_cnn(simulations: np.ndarray) -> torch.Tensor:
+def pad_timeseries_for_cnn(simulations: np.ndarray, device: str) -> torch.Tensor:
     # Time series data comes in as np array of type object
     # Each entry in the array is a time series of reviews of unequal length
     # We pad each series to the length of the longest time series
     # Padding value is the last observation in each time series that needs to be padded
     # Each observation in the time series of reviews is expected to be 5-D
     simulations = [
-        torch.from_numpy(simulation.astype(np.dtype("float32"))).type(torch.FloatTensor) for simulation in simulations
+        torch.from_numpy(simulation.astype(np.dtype("float32"))).type(torch.FloatTensor).to(device) for simulation in simulations
     ]
     lens = [len(simulation) for simulation in simulations]
     max_len = max(lens)
