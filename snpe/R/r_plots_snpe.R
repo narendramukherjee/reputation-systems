@@ -57,7 +57,7 @@ library(gridExtra)
 library(cowplot)
 plot_grid(p1, p2, p3, labels=c("rho_0", "rho_1", "h_p"), ncol = 2, nrow = 2)
 
-
+# variance: TBD
 
 # rho+ and rho- for different values of hp
 # product characteristics
