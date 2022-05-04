@@ -5,12 +5,13 @@ library(data.table)
 
 s <- fread("posterior_samples_DF.gz")
 s[,mean_rho0:=mean(rho_0), by = .(asin)][,mean_rho1:=mean(rho_1), by = .(asin)][,mean_hp:=mean(h_p), by = .(asin)]
+s[,sd_rho0:=sd(rho_0), by = .(asin)][,sd_rho1:=sd(rho_1), by = .(asin)][,sd_hp:=sd(h_p), by = .(asin)]
 s[,ymin_rho0:=quantile(rho_0, 0.25), by = .(asin)][,ymax_rho0:=quantile(rho_0, 0.75), by = .(asin)]
 s[,ymin_rho1:=quantile(rho_1, 0.25), by = .(asin)][,ymax_rho1:=quantile(rho_1, 0.75), by = .(asin)]
 s[,ymin_hp:=quantile(h_p, 0.25), by = .(asin)][,ymax_hp:=quantile(h_p, 0.75), by = .(asin)]
 
 s_uniq <- unique(s, by = c("asin"))
-s_uniq[,vol_quant:=cut(s_uniq$num_reviews,4)]
+#s_uniq[,vol_quant:=cut(s_uniq$num_reviews,4)]
 #s_uniq <- s_uniq[1]
 
 su1 <- s_uniq[mean_rho0<2]
@@ -18,8 +19,37 @@ su1 <- s_uniq[mean_rho0<2]
 s_uniq$asin <- factor(s_uniq$asin)
 s_uniq <- s_uniq  %>%
   mutate(quantile = ntile(num_reviews, 4))
-
 s_uniq$quantile <- as.factor(s_uniq$quantile)
+s_uniq <- s_uniq  %>%
+  mutate(hp_quantile = ntile(mean_hp, 4))
+s_uniq$hp_quantile <- as.factor(s_uniq$hp_quantile)
+
+
+p1h <- ggplot(s_uniq, aes(x = asin,y =mean_rho0)) + geom_point() + 
+  geom_errorbar(aes(ymin = ymin_rho0, ymax = ymax_rho0)) +
+  facet_wrap(hp_quantile~., scales = "free") +
+  #coord_flip() +scale_y_reverse() +
+  theme(axis.title.x=element_blank(),
+   axis.text.x=element_blank(),
+   axis.ticks.x=element_blank())
+ # +
+  
+p1h
+
+hp_labs <- c("1","2","3","4")
+names(hp_labs) <- c("0-25th percentile","25th to 50th percentile","50th to 75th percentile","75th to 100th percentile" )
+
+p2h <- ggplot(s_uniq, aes(x = asin,y =mean_rho1)) + geom_point() + 
+  geom_errorbar(aes(ymin = ymin_rho1, ymax = ymax_rho1)) +
+  facet_wrap(hp_quantile~., scales = "free", labeller = hp_labs) +
+  #coord_flip() +scale_y_reverse() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + ylab("Means and 75% credible intervals for each product")
+
+
+p2h
+
 
 p1 <- ggplot(s_uniq, aes(x = asin,y =mean_rho0)) + geom_point() + geom_errorbar(aes(ymin = ymin_rho0, ymax = ymax_rho0)) +
   #theme(axis.title.x=element_blank(),
@@ -28,7 +58,8 @@ p1 <- ggplot(s_uniq, aes(x = asin,y =mean_rho0)) + geom_point() + geom_errorbar(
   coord_flip() + #scale_y_reverse() +
   theme(axis.title.y=element_blank(),
    axis.text.y=element_blank(),
-   axis.ticks.y=element_blank()) 
+   axis.ticks.y=element_blank())
+
 p1_vol0 <- ggplot(s_uniq, aes(x = quantile,y =mean_rho0)) + geom_boxplot(notch=FALSE)
 p1_vol
 p1_vol1 <- ggplot(s_uniq, aes(x = quantile,y =mean_rho1)) + geom_boxplot(notch=FALSE)
@@ -90,6 +121,9 @@ summary(lm(mean_rho0 ~ branded, data = s_uniq))
 summary(lm(mean_rho1 ~ branded, data = s_uniq))
 summary(lm(mean_hp ~ branded, data = s_uniq))
 
+summary(lm(sd_rho0 ~ log(num_reviews), data = s_uniq))
+summary(lm(sd_rho1 ~ log(num_reviews), data = s_uniq))
+summary(lm(sd_hp ~ log(num_reviews), data = s_uniq))
 
 summary(lm(mean_rho0 ~ log(num_reviews), data = s_uniq))
 summary(lm(mean_rho1 ~ log(num_reviews), data = s_uniq))
