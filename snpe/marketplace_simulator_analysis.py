@@ -77,30 +77,66 @@ def plot_simulated_histogram_variety_test(
     distances = cdist(params_to_plot, simulation_parameters, metric="euclidean")
     sim_idx = np.argmin(distances, axis=1).astype("int")
 
-    for i in sim_idx:
-        plt.figure()
-        plt.bar(
+    if len(params_to_plot) <= 4:
+        fig, ax = plt.subplots(len(params_to_plot), squeeze=False)
+    else:
+        fig, ax = plt.subplots((len(params_to_plot) + 1) // 4, 4, squeeze=False)
+
+    for i, idx in enumerate(sim_idx):
+        row_index = i // 4
+        ax[row_index, i % 4].bar(
             [1, 2, 3, 4, 5],
-            simulations[i][-1, :],
+            simulations[idx][-1, :] / np.sum(simulations[idx][-1, :]),
             width=0.5,
             color=sns.xkcd_rgb["grey"],
             label=r"$\rho_{-}=$"
-            + f"{simulation_parameters[i, 0]:0.2f}, "
+            + f"{simulation_parameters[idx, 0]:0.2f}, "
+            + "\n"
             + r"$\rho_{+}=$"
-            + f"{simulation_parameters[i, 1]:0.2f}, "
+            + f"{simulation_parameters[idx, 1]:0.2f}, "
+            + "\n"
             + r"$h_{p}=$"
-            + f"{simulation_parameters[i, 2]:0.2f}",
+            + f"{simulation_parameters[idx, 2]:0.2f}",
         )
-        ax = plt.gca()
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        plt.xlabel("Rating")
-        plt.ylabel("Number of ratings")
-        plt.legend(loc="upper left", fontsize=20)
+        ax[row_index, i % 4].spines["top"].set_visible(False)
+        ax[row_index, i % 4].spines["right"].set_visible(False)
+        ax[row_index, i % 4].legend(fontsize=15)
+        # If this is the bottom row of plots, add the xticks, otherwise hide them
+        if row_index == (len(sim_idx) - 1) // 4:
+            ax[row_index, i % 4].set_xticks([1, 2, 3, 4, 5])
+            ax[row_index, i % 4].set_xticklabels(["1", "2", "3", "4", "5"])
+            ax[row_index, i % 4].tick_params(axis="x", labelsize=20)
+        else:
+            ax[row_index, i % 4].set_xticks([1, 2, 3, 4, 5])
+            ax[row_index, i % 4].set_xticklabels([])
+        # If this is the leftmost plot, add y-axis labels, otherwise hide them
+        ax[row_index, i % 4].set_ylim([0, 1])
+        if i % 4 == 0:
+            ax[row_index, i % 4].set_yticks([0, 0.5, 1])
+            ax[row_index, i % 4].set_yticklabels(["0", "0.5", "1"])
+        else:
+            ax[row_index, i % 4].set_yticklabels([])
 
+    # add a big axis, hide frame
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axis
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+    # plt.xlabel(r"$\rho_{-}, \rho_{+}$")
+    plt.xlabel("Star Rating")
+    plt.ylabel("Fraction of total reviews")
+
+
+def plot_simulated_vs_actual_total_reviews(simulations: np.ndarray, observations: pd.DataFrame) -> None:
     # Plot the distribution of the total number of reviews per product in a separate figure
     plt.figure()
-    plt.hist()
+    total_num_reviews = np.array([np.sum(sim[-1]) for sim in simulations])
+    bins = np.histogram_bin_edges(total_num_reviews, bins='auto')
+    plt.hist(total_num_reviews, color=sns.xkcd_rgb["cerulean"], alpha=0.5, label="Simulated", density=True, bins=bins)
+    obs_total_num_reviews = np.array(observations.asin.value_counts())
+    plt.hist(obs_total_num_reviews, color=sns.xkcd_rgb["dark orange"], alpha=0.5, label="Actual", density=True, bins=bins)
+    plt.ylabel(f"Probability density")
+    plt.xlabel("Total number of reviews per product")
+    plt.legend(fontsize=27)
 
 
 def plot_test_parameter_recovery(
@@ -310,12 +346,28 @@ def main() -> None:
     simulation_parameters = np.concatenate(
         (simulator.simulation_parameters["rho"], simulator.simulation_parameters["h_p"][:, None]), axis=1
     )
-    # Produce histogram plots to test that model can generate all sorts of review distributions
+    # Produce histogram plots to test that simulation model can generate all sorts of review distributions
     plot_simulated_histogram_variety_test(
         simulations,
         simulation_parameters,
-        np.array([[0.0, 0.0, 0.0], [1.5, 3.5, 0.0], [1.0, 1.0, 0.0], [3.5, 1.5, 0.0], [0.0, 0.0, 0.3], [1.5, 3.5, 0.4], [1.0, 1.0, 0.5], [3.5, 1.5, 0.8]]),
+        np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.5, 3.5, 0.0],
+                [1.0, 1.0, 0.0],
+                [3.5, 1.5, 0.0],
+                [0.0, 0.0, 0.3],
+                [1.5, 3.5, 0.4],
+                [1.0, 1.0, 0.5],
+                [3.5, 1.5, 0.8],
+            ]
+        ),
     )
+    # Load up the real data and plot hist of total number of reviews per product to show
+    # that it looks like what is produced in the simulation
+    reviews = pyreadr.read_r(ARTIFACT_PATH / "reviews_bazaarvoice_main_vars.Rds")
+    reviews = reviews[None]
+    plot_simulated_vs_actual_total_reviews(simulations, reviews)
 
     # Load up the posterior samples for simulations to look at parameter recovery
     with open(ARTIFACT_PATH / "posterior_inference_on_simulations.pkl", "rb") as f:
