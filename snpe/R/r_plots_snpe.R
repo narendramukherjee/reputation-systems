@@ -34,6 +34,9 @@ s_uniq <- s_uniq  %>%
   mutate(hp_quantile = ntile(mean_hp, 4))
 s_uniq$hp_quantile <- as.factor(s_uniq$hp_quantile)
 
+s_uniq_673 <- s_uniq[num_reviews!=673]
+
+
 # Herding plots
 
 hp_labs <- c("1"="Herding parameter h_p in 0-25th percentile",
@@ -81,7 +84,6 @@ p1_vol0
 p1_vol1 <- ggplot(s_uniq, aes(x = quantile,y =mean_rho1)) + geom_boxplot(notch=FALSE) + xlab("Review volume quantile") + ylab("Mean \u03c1+")
 p1_vol1
 
-s_uniq_673 <- s_uniq[num_reviews!=673]
 
 ggplot(s_uniq_673, aes(x = num_reviews,y =mean_rho0)) + geom_point() +
   geom_errorbar(aes(ymin = ymin_rho0, ymax = ymax_rho0)) + xlab("Review volume quantile")+ ylab("Mean \u03c1-") + theme_bw()
@@ -138,9 +140,9 @@ summary(s1 <- lm(mean_rho0 ~ log(avg_price), data = s_uniq_673))
 summary(s2 <- lm(mean_rho1 ~ log(avg_price), data = s_uniq_673))
 summary(s3 <- lm(mean_hp ~ log(avg_price), data = s_uniq_673))
 
-summary(s1 <- lm(mean_rho0 ~ log(avg_price) + num_reviews, data = s_uniq_673))
-summary(s2 <- lm(mean_rho1 ~ log(avg_price) + num_reviews, data = s_uniq_673))
-summary(s3 <- lm(mean_hp ~ log(avg_price) + num_reviews, data = s_uniq_673))
+summary(s1 <- lm(mean_rho0 ~ log(avg_price) + num_reviews + mean_r, data = s_uniq_673))
+summary(s2 <- lm(mean_rho1 ~ log(avg_price) + num_reviews + mean_r, data = s_uniq_673))
+summary(s3 <- lm(mean_hp ~ log(avg_price) + num_reviews + mean_r, data = s_uniq_673))
 
 stargazer(s1,s2,s3, type = "html")
 
@@ -149,14 +151,18 @@ stargazer(s1,s2,s3, type = "html")
 
 geom_errorbar(aes(ymin = ymin_rho0, ymax = ymax_rho0))
 counts_b <- s_uniq %>% count(brand)
+counts_bn <- counts_b[brand!="Unbranded"]
 counts_b <- counts_b[n>=1]
-s_uniq[,branded:=ifelse(s_uniq$brand=="Unbranded"|s_uniq$brand=="None"|s_uniq$brand=="Argos Value Range",0,1)]
-s_uniq_673 <- s_uniq[num_reviews!=673]
+s_uniq_673[,branded:=ifelse(s_uniq_673$brand=="Unbranded"|s_uniq_673$brand=="None"|s_uniq_673$brand=="Argos Value Range",0,1)]
+#s_uniq_673 <- s_uniq[num_reviews!=673]
+counts_bn <- counts_bn[n>=20]
+s_uniq_673[,branded:=ifelse(s_uniq_673$brand %in% counts_bn$brand,1,0)]
 
-summary(t1 <- lm(mean_rho0 ~ branded + num_reviews, data = s_uniq_673))
-summary(t2 <- lm(mean_rho1 ~ branded + num_reviews, data = s_uniq_673))
-summary(t3 <- lm(mean_hp ~ branded + num_reviews, data = s_uniq_673))
+summary(t1 <- lm(mean_rho0 ~ branded + num_reviews + mean_r, data = s_uniq_673))
+summary(t2 <- lm(mean_rho1 ~ branded + num_reviews + mean_r, data = s_uniq_673))
+summary(t3 <- lm(mean_hp ~ branded + num_reviews + mean_r, data = s_uniq_673))
 
+sta
 summary(t1 <- lm(mean_rho0 ~ branded, data = s_uniq_673))
 summary(t2 <- lm(mean_rho1 ~ branded, data = s_uniq_673))
 summary(t3 <- lm(mean_hp ~ branded, data = s_uniq_673))
