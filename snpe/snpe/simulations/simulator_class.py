@@ -3,11 +3,12 @@ import pickle
 
 from collections import deque
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 
 from joblib import Parallel, delayed
+from snpe.utils.functions import check_existing_reviews, check_simulation_parameters
 from snpe.utils.tqdm_utils import tqdm_joblib
 from tqdm import tqdm
 
@@ -56,7 +57,33 @@ class BaseSimulator:
     def decision_to_leave_review(self, delta: float, simulation_id: int) -> bool:
         raise NotImplementedError
 
-    def simulate(self, num_simulations: int, num_reviews_per_simulation: Optional[np.ndarray] = None) -> None:
+    def simulate(
+        self,
+        num_simulations: int,
+        num_reviews_per_simulation: Optional[np.ndarray] = None,
+        simulation_parameters: Optional[dict] = None,
+        existing_reviews: Optional[List[np.ndarray]] = None,
+    ) -> None:
+        if existing_reviews is not None:
+            assert (
+                simulation_parameters is not None
+            ), f"""
+            Existing reviews for products supplied, but no simulation parameters given
+            """
+            assert (
+                num_reviews_per_simulation is not None
+            ), f"""
+            Existing reviews for products supplied,but num_reviews_per_simulation not given. This gives the number of
+            TOTAL reviews per product desired
+            """
+            # Run checks on the shape and initial values of the review timeseries provided. These checks remove
+            # the first value in the timeseries before returning it (as that first value is automatically re-appended)
+            # during simulations
+            existing_reviews = check_existing_reviews(existing_reviews)
+            # Also pick num_products = num_simulations from the provided existing reviews if the tests succeed. The
+            # provided num_simulations will then be ignored
+            num_simulations = len(existing_reviews)
+
         if num_reviews_per_simulation is not None:
             assert (
                 len(num_reviews_per_simulation) == num_simulations
@@ -65,12 +92,38 @@ class BaseSimulator:
             but {len(num_reviews_per_simulation)} review counts per simulation provided
             """
 
-        self.simulation_parameters = self.generate_simulation_parameters(num_simulations)
+        if simulation_parameters is not None:
+            # Check that the provided simulation parameters have all the parameters (i.e, dict keys)
+            # that should be there. This is done by comparing to a dummy set of generated parameters
+            dummy_parameters = self.generate_simulation_parameters(10)
+            assert set(simulation_parameters) == set(
+                dummy_parameters
+            ), f"""
+            Found parameters {simulation_parameters.keys()} in the provided parameters; expected
+            {dummy_parameters.keys()} as simulation parameters instead
+            """
+        else:
+            simulation_parameters = self.generate_simulation_parameters(num_simulations)
+        # Run shape checks on the input dict of simulation parameters
+        # Store the number of distribution samples per parameter if the checks succeed
+        self.params["num_dist_samples"] = check_simulation_parameters(simulation_parameters, num_simulations)
+        self.simulation_parameters = simulation_parameters
+
         with tqdm_joblib(tqdm(desc="Simulations", total=num_simulations)) as progress_bar:
             simulations = Parallel(n_jobs=mp.cpu_count())(
-                delayed(self.simulate_review_histogram)(i, num_reviews_per_simulation) for i in range(num_simulations)
+                delayed(self.simulate_review_histogram)(i, num_reviews_per_simulation, existing_reviews)
+                for i in range(num_simulations)
             )
         self.simulations = np.array(simulations)
+
+    # Helper function to sample the distribution of parameters to yield a set of simulation parameters for
+    # every visitor. Our simulations are at the product level, thus the simulation ids run from 0 to n-1 if we are
+    # simulation n products. Each of these n products has a distribution of simulation parameters (which is the inferred
+    # set of posterior distributions if we are trying to simulate new data after performing inference from observed products)
+    def yield_simulation_param_per_visitor(self, simulation_id: int, param_to_yield: str) -> Union[float, np.ndarray]:
+        return self.simulation_parameters[param_to_yield][
+            np.random.randint(self.params["num_dist_samples"]), simulation_id
+        ]
 
     def save_simulations(self, dirname: Path) -> None:
         simulation_dict = {
@@ -97,7 +150,16 @@ class SingleRhoSimulator(BaseSimulator):
 
     @classmethod
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
-        return {"rho": np.random.random(size=num_simulations) * 4}
+        # This is the basic simulation parameter generator and should be used when simulations are being done
+        # to train SNPE model. If supplying already inferred posterior for simulations, this method should not be used
+        # NOTE: The simulation models expect a distribution over simulation parameters for every simulation id.
+        # This method hacks the distribution requirement by creating distribution samples that are the same value
+        # Of course, the parameters are uniformly distributed across simulations, but there is no variance in the
+        # distributions "per simulation"
+        # That is why the num_dist_samples is only 10 here (just any small number would do) as all the values (per
+        # simulation id) are exactly equal
+        simulation_parameters = {"rho": np.tile((np.random.random(size=num_simulations) * 4)[None, :], (10, 1))}
+        return simulation_parameters
 
     def get_actual_experience(self, expected_experience_dist: np.ndarray, **kwargs) -> int:
         # This method is separated out so that during marketplace simulations, a more
@@ -161,7 +223,7 @@ class SingleRhoSimulator(BaseSimulator):
     def decision_to_leave_review(self, delta: float, simulation_id: int) -> bool:
         # Right now, we don't make the very first user always leave a review - maybe change later
         # Pull out the single rho which will be used in the decision to rate
-        rho = self.simulation_parameters["rho"][simulation_id]
+        rho = self.yield_simulation_param_per_visitor(simulation_id, "rho")
         # Return the review only if mismatch is higher than rho
         # Tendency to rate governs baseline probability of returning review
         if np.random.random() <= self.tendency_to_rate:
@@ -172,7 +234,10 @@ class SingleRhoSimulator(BaseSimulator):
             return False
 
     def simulate_review_histogram(
-        self, simulation_id: int, num_reviews_per_simulation: Optional[np.ndarray] = None
+        self,
+        simulation_id: int,
+        num_reviews_per_simulation: Optional[np.ndarray] = None,
+        existing_reviews: Optional[List[np.ndarray]] = None,
     ) -> np.ndarray:
         if num_reviews_per_simulation is None:
             num_simulated_reviews = np.random.randint(low=20, high=5001)
@@ -180,7 +245,22 @@ class SingleRhoSimulator(BaseSimulator):
             num_simulated_reviews = int(num_reviews_per_simulation[simulation_id])
 
         total_visitors = num_simulated_reviews * 30
-        simulated_reviews = deque([np.zeros(5)], maxlen=total_visitors)
+        # Give the product 5 reviews to start with, one for each rating. This is only so that the review timeseries
+        # looks similar to that produced by the more complex marketplace simulations
+        simulated_reviews = deque([np.ones(5)], maxlen=total_visitors)
+        # If existing reviews have been supplied, unravel them into the simulated reviews deque
+        if existing_reviews is not None:
+            product_reviews = existing_reviews[simulation_id]
+            for review in product_reviews:
+                simulated_reviews.append(review)
+                if len(simulated_reviews) > 1:
+                    assert (
+                        np.sum(simulated_reviews[-1]) - np.sum(simulated_reviews[-2])
+                    ) == 1, f"""
+                    Please check the histograms provided in the array of existing reviews. These should be in the form
+                    of cumulative histograms and should only add 1 rating at a time
+                    """
+                total_visitors -= 1
 
         for visitor in range(total_visitors):
             rating_index = self.simulate_visitor_journey(simulated_reviews[-1], simulation_id)
@@ -191,13 +271,13 @@ class SingleRhoSimulator(BaseSimulator):
             if np.sum(simulated_reviews[-1]) >= num_simulated_reviews:
                 break
 
-        simulated_reviews = np.array(simulated_reviews)
+        simulated_reviews_array = np.array(simulated_reviews)
 
         # Return histogram or timeseries of review histograms based on simulation_type
         if self.simulation_type == "histogram":
-            return simulated_reviews[-1, :]
+            return simulated_reviews_array[-1, :]
         else:
-            return simulated_reviews
+            return simulated_reviews_array
 
 
 class DoubleRhoSimulator(SingleRhoSimulator):
@@ -206,9 +286,20 @@ class DoubleRhoSimulator(SingleRhoSimulator):
 
     @classmethod
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
-        return {
-            "rho": np.vstack((np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)).T
-        }
+        # This is the basic simulation parameter generator and should be used when simulations are being done
+        # to train SNPE model. If supplying already inferred posterior for simulations, this method should not be used
+        # NOTE: The simulation models expect a distribution over simulation parameters for every simulation id.
+        # This method hacks the distribution requirement by creating distribution samples that are the same value
+        # Of course, the parameters are uniformly distributed across simulations, but there is no variance in the
+        # distributions "per simulation"
+        # That is why the num_dist_samples is only 10 here (just any small number would do) as all the values (per
+        # simulation id) are exactly equal
+        rho_array = np.vstack(
+            (np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)
+        ).T
+        rho_array = np.tile(rho_array[None, :, :], (10, 1, 1))
+        simulation_parameters = {"rho": rho_array}
+        return simulation_parameters
 
     def decision_to_leave_review(self, delta: float, simulation_id: int) -> bool:
         # Right now, we don't make the very first user always leave a review - maybe change later
@@ -244,18 +335,21 @@ class HerdingSimulator(DoubleRhoSimulator):
 
     @classmethod
     def generate_simulation_parameters(cls, num_simulations: int) -> dict:
-        return {
-            "rho": np.vstack(
-                (np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)
-            ).T,
-            "h_p": np.random.random(size=num_simulations),
-        }
+        # This method gets the rho parameters by calling the parameter generating classmethod of the DoubleRhoSimulator
+        # Then it just adds the herding parameter on top
+        simulation_parameters = DoubleRhoSimulator.generate_simulation_parameters(num_simulations)
+        simulation_parameters["h_p"] = np.tile(
+            np.random.random(size=num_simulations)[None, :], (simulation_parameters["rho"].shape[0], 1)
+        )
+        return simulation_parameters
 
     def simulate_visitor_journey(
         self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True, **kwargs
     ) -> Union[int, None]:
         # Run the visitor journey the same way at first
-        rating_index = super(HerdingSimulator, self).simulate_visitor_journey(simulated_reviews, simulation_id, **kwargs)
+        rating_index = super(HerdingSimulator, self).simulate_visitor_journey(
+            simulated_reviews, simulation_id, **kwargs
+        )
 
         # If the decision to rate was true, modify the rating index according to the herding procedure
         # Don't initiate the herding procedure till at least the minimum number of reviews have come
@@ -267,7 +361,9 @@ class HerdingSimulator(DoubleRhoSimulator):
             return rating_index
 
     def choose_herding_parameter(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> float:
-        return self.simulation_parameters["h_p"][simulation_id]
+        h_p = self.yield_simulation_param_per_visitor(simulation_id, "h_p")
+        assert isinstance(h_p, float), f"Expecting a scalar value for the herding parameter, got {h_p} instead"
+        return h_p
 
     def herding(
         self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True
@@ -275,7 +371,6 @@ class HerdingSimulator(DoubleRhoSimulator):
         # Pull out the herding parameter which will be used in this simulation
         # This step is trivial when using a single herding h_p, but becomes important when using 2
         h_p = self.choose_herding_parameter(rating_index, simulated_reviews, simulation_id)
-        assert isinstance(h_p, float), f"Expecting a scalar value for the herding parameter, got {h_p} instead"
         # If an additional user-specific herding parameter is being used, generate it
         if use_h_u:
             # The final herding probability is the product of h_p and h_u
@@ -335,17 +430,18 @@ class DoubleHerdingSimulator(HerdingSimulator):
 
     @classmethod
     def generate_simulation_parameters(cls, num_simulations) -> dict:
-        return {
-            "rho": np.vstack(
-                (np.random.random(size=num_simulations) * 4, np.random.random(size=num_simulations) * 4)
-            ).T,
-            "h_p": np.vstack((np.random.random(size=num_simulations), np.random.random(size=num_simulations))).T,
-        }
+        # Same strategy as in the HerdingSimulator
+        simulation_parameters = DoubleRhoSimulator.generate_simulation_parameters(num_simulations)
+        h_p_array = np.vstack((np.random.random(size=num_simulations), np.random.random(size=num_simulations))).T
+        h_p_array = np.tile(h_p_array[None, :, :], (simulation_parameters["rho"].shape[0], 1, 1))
+        simulation_parameters["h_p"] = h_p_array
+        return simulation_parameters
 
     def choose_herding_parameter(self, rating_index, simulated_reviews: np.ndarray, simulation_id: int) -> float:
         # Pull out the (2 valued) h_p corresponding to this simulation id
-        h_p = self.simulation_parameters["h_p"][simulation_id]
-        # Confirm that h_p is 2-dimensional
+        h_p = self.yield_simulation_param_per_visitor(simulation_id, "h_p")
+        # Confirm that h_p is 2-dimensional array
+        assert isinstance(h_p, np.ndarray), f"Expected np.ndarray type for h_p, found {type(h_p)} instead"
         assert h_p.shape == (2,), f"Expecting shape (2,) for h_p, got {h_p.shape} instead"
         # Pick which h_p to use based on the rating_index that the visitor picked
         # If it is greater than the mean/mode of existing ratings, pick h_p[1], else pick h_p[0]

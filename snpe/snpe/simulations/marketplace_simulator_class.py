@@ -13,6 +13,7 @@ from joblib import Parallel, delayed
 from scipy.spatial.distance import cdist
 from snpe.embeddings.embeddings_density_est_GMM import EmbeddingDensityGMM
 from snpe.embeddings.embeddings_to_ratings import EmbeddingRatingPredictor
+from snpe.utils.functions import check_existing_reviews, check_simulation_parameters
 from snpe.utils.statistics import review_histogram_means
 from snpe.utils.tqdm_utils import multi_progressbar
 
@@ -47,7 +48,10 @@ class MarketplaceSimulator(HerdingSimulator):
         print(f"Loaded embedding -> rating predictor model: \n {self.embedding_rating_predictor.model}")
 
     def simulate_review_histogram(
-        self, simulation_id: int, num_reviews_per_simulation: Optional[np.ndarray] = None
+        self,
+        simulation_id: int,
+        num_reviews_per_simulation: Optional[np.ndarray] = None,
+        existing_reviews: Optional[List[np.ndarray]] = None,
     ) -> np.ndarray:
         raise NotImplementedError(
             f"""
@@ -56,7 +60,13 @@ class MarketplaceSimulator(HerdingSimulator):
             """
         )
 
-    def simulate(self, num_simulations: int, num_reviews_per_simulation: Optional[np.ndarray] = None) -> None:
+    def simulate(
+        self,
+        num_simulations: int,
+        num_reviews_per_simulation: Optional[np.ndarray] = None,
+        simulation_parameters: dict = None,
+        existing_reviews: Optional[List[np.ndarray]] = None,
+    ) -> None:
         assert (
             num_reviews_per_simulation is None
         ), f"""
@@ -64,7 +74,45 @@ class MarketplaceSimulator(HerdingSimulator):
             """
         # num_simulations = number of marketplaces to be simulated
         # Total number of simulations = total number of marketplaces x num products per marketplace
-        self.simulation_parameters = self.generate_simulation_parameters(num_simulations * self.num_products)
+        if existing_reviews is not None:
+            assert (
+                simulation_parameters is not None
+            ), f"""
+            Existing reviews for products supplied, but no simulation parameters given
+            """
+            # Run checks on the shape and initial values of the review timeseries provided. These checks remove
+            # the first value in the timeseries before returning it (as that first value is automatically re-appended)
+            # during simulations
+            existing_reviews = check_existing_reviews(existing_reviews)
+            # Also pick num_simulations = num_products * provided num simulations, where num_products comes from the
+            # provided existing reviews. The provided num_simulations will then be ignored
+            assert self.num_products == len(
+                existing_reviews
+            ), f"""
+            Marketplace simulation with {self.num_products} desired, but only {len(existing_reviews)} products exist
+            in the provided array of existing reviews from the marketplace
+            """
+            num_simulations *= len(existing_reviews)
+
+        if simulation_parameters is not None:
+            # Check that the provided simulation parameters have all the parameters (i.e, dict keys)
+            # that should be there. This is done by comparing to a dummy set of generated parameters
+            dummy_parameters = self.generate_simulation_parameters(1)
+            assert set(simulation_parameters) == set(
+                dummy_parameters
+            ), f"""
+            Found parameters {simulation_parameters.keys()} in the provided parameters; expected
+            {dummy_parameters.keys()} as simulation parameters instead
+            """
+        else:
+            simulation_parameters = self.generate_simulation_parameters(num_simulations * self.num_products)
+        # Run shape checks on the input dict of simulation parameters
+        # If succesful, this returns the number of distribution samples per parameter which we save in the model
+        # object's params dict
+        self.params["num_dist_samples"] = check_simulation_parameters(
+            simulation_parameters, num_simulations * self.num_products
+        )
+        self.simulation_parameters = simulation_parameters
         self.load_embedding_density_estimators()
         self.load_embedding_rating_predictor()
         # Change the random_state of the embedding density estimators to None
@@ -81,7 +129,7 @@ class MarketplaceSimulator(HerdingSimulator):
         )
         progproc.start()
         simulations = Parallel(n_jobs=mp.cpu_count())(
-            delayed(self.simulate_marketplace)(i, queue) for i in range(num_simulations)
+            delayed(self.simulate_marketplace)(i, queue, existing_reviews) for i in range(num_simulations)
         )
         self.simulations = np.array(simulations)
 
@@ -129,17 +177,35 @@ class MarketplaceSimulator(HerdingSimulator):
             pred_ratings = self.embedding_rating_predictor.model(product_embeddings).detach().numpy()
         return pred_ratings
 
-    def simulate_marketplace(self, marketplace_id: int, queue: Queue) -> np.ndarray:
+    def simulate_marketplace(
+        self, marketplace_id: int, queue: Queue, existing_reviews: Optional[List[np.ndarray]] = None
+    ) -> np.ndarray:
         total_visitors = self.num_total_marketplace_reviews * 30
         # Each product gets 5 reviews, 1 for each star to start off. This is necessary to prevent the
         # "cold start" problem when avg. rating needs to be calculated for products that have not accumulated
         # ratings yet
-        simulated_reviews = [deque([np.ones(5)], maxlen=total_visitors) for prod in range(self.num_products)]
+        simulated_reviews = [deque([np.ones(5)], maxlen=total_visitors) for product in range(self.num_products)]
         product_embeddings, _ = self.embedding_density_estimator.product_model.sample(n_samples=self.num_products)
         pred_product_ratings = self.predict_ratings_from_embeddings(product_embeddings.copy())
         # Maintain a counter of total ratings on the platform - this total ignores the 1st 5 reviews
         # added to all products by default
         current_total_marketplace_reviews = 0
+        # If existing reviews have been supplied, unravel them into the simulated reviews deque
+        if existing_reviews is not None:
+            for product in range(self.num_products):
+                product_reviews = existing_reviews[product]
+                for review in product_reviews:
+                    simulated_reviews[product].append(review)
+                    if len(simulated_reviews[product]) > 1:
+                        assert (
+                            np.sum(simulated_reviews[product][-1]) - np.sum(simulated_reviews[product][-2])
+                        ) == 1, f"""
+                        Please check the histograms provided in the array of existing reviews. These should be in the form
+                        of cumulative histograms and should only add 1 rating at a time. \n
+                        This is not true for product: {product}
+                        """
+                    current_total_marketplace_reviews += 1
+                    total_visitors -= 1
 
         for visitor in range(total_visitors):
             chosen_product = self.simulate_visitor_choice(product_embeddings, simulated_reviews)

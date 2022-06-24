@@ -368,6 +368,25 @@ def main() -> None:
     reviews = pyreadr.read_r(ARTIFACT_PATH / "reviews_bazaarvoice_main_vars.Rds")
     reviews = reviews[None]
     plot_simulated_vs_actual_total_reviews(simulations, reviews)
+    # Next load up the simulations done from the posteriors of real products, and compare those to
+    # the real data
+    params = {
+        "review_prior": np.ones(5),
+        "tendency_to_rate": 0.05,
+        "simulation_type": "timeseries",
+        "previous_rating_measure": "mode",
+        "min_reviews_for_herding": 5,
+        "num_products": 1400,
+        "num_total_marketplace_reviews": 140_000,
+        "consideration_set_size": 5,
+    }
+    simulator = marketplace_simulator_class.MarketplaceSimulator(params)
+    simulator.load_simulator(ARTIFACT_PATH / "simulations_from_posterior")
+    simulations = np.array(list(itertools.chain.from_iterable(simulator.simulations)), dtype=object)
+    simulation_parameters = np.concatenate(
+        (simulator.simulation_parameters["rho"], simulator.simulation_parameters["h_p"][:, None]), axis=1
+    )
+    plot_simulated_vs_actual_total_reviews(simulations, reviews)
 
     # Load up the posterior samples for simulations to look at parameter recovery
     with open(ARTIFACT_PATH / "posterior_inference_on_simulations.pkl", "rb") as f:
