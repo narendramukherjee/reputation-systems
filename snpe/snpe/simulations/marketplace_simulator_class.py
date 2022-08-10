@@ -66,6 +66,8 @@ class MarketplaceSimulator(HerdingSimulator):
         num_reviews_per_simulation: Optional[np.ndarray] = None,
         simulation_parameters: dict = None,
         existing_reviews: Optional[List[np.ndarray]] = None,
+        product_embeddings: Optional[np.ndarray] = None,
+        **kwargs,
     ) -> None:
         assert (
             num_reviews_per_simulation is None
@@ -74,6 +76,10 @@ class MarketplaceSimulator(HerdingSimulator):
             """
         # num_simulations = number of marketplaces to be simulated
         # Total number of simulations = total number of marketplaces x num products per marketplace
+        if num_simulations != mp.cpu_count():
+            # If the number of marketplaces being simulated is not the same as the number of CPUs available,
+            # warn the user about that
+            input(f"{num_simulations} marketplaces to be simulated on {mp.cpu_count()} CPUs. Press Enter to continue..")
         if existing_reviews is not None:
             assert (
                 simulation_parameters is not None
@@ -81,18 +87,15 @@ class MarketplaceSimulator(HerdingSimulator):
             Existing reviews for products supplied, but no simulation parameters given
             """
             # Run checks on the shape and initial values of the review timeseries provided. These checks remove
-            # the first value in the timeseries before returning it (as that first value is automatically re-appended)
-            # during simulations
+            # the first value in the timeseries before returning it (as that first value is automatically re-appended
+            # during simulations)
             existing_reviews = check_existing_reviews(existing_reviews)
-            # Also pick num_simulations = num_products * provided num simulations, where num_products comes from the
-            # provided existing reviews. The provided num_simulations will then be ignored
             assert self.num_products == len(
                 existing_reviews
             ), f"""
             Marketplace simulation with {self.num_products} desired, but only {len(existing_reviews)} products exist
             in the provided array of existing reviews from the marketplace
             """
-            num_simulations *= len(existing_reviews)
 
         if simulation_parameters is not None:
             # Check that the provided simulation parameters have all the parameters (i.e, dict keys)
@@ -120,6 +123,18 @@ class MarketplaceSimulator(HerdingSimulator):
         # being the same
         self.embedding_density_estimator.product_model.set_params(**{"random_state": None})
         self.embedding_density_estimator.user_model.set_params(**{"random_state": None})
+        # If product embeddings have been provided, check their validity
+        if product_embeddings is not None:
+            assert product_embeddings.shape[0] == self.num_products, f"""
+            Marketplace simulation with {self.num_products} products desired, but only {product_embeddings.shape[0]}
+            product embeddings provided. Leave product embeddings as None if they are to be sampled during simulation
+            """
+            # Check that provided product embeddings have the same shape as those drawn from visitor embedding model
+            visitor_embedding, _ = self.embedding_density_estimator.user_model.sample()
+            assert product_embeddings.shape[1] == visitor_embedding.shape[1], f"""
+            Product embeddings have {product_embeddings.shape[1]} elements while visitor embedding generator produces
+            embeddings with {visitor_embedding.shape[1]} elements. Please check the input product embeddings
+            """
         # Now set up the multi-progressbar in a separate Manager and queue that can be accessed by
         # all the processes
         manager = Manager()
@@ -129,7 +144,8 @@ class MarketplaceSimulator(HerdingSimulator):
         )
         progproc.start()
         simulations = Parallel(n_jobs=mp.cpu_count())(
-            delayed(self.simulate_marketplace)(i, queue, existing_reviews) for i in range(num_simulations)
+            delayed(self.simulate_marketplace)(i, queue, existing_reviews, product_embeddings)
+            for i in range(num_simulations)
         )
         self.simulations = np.array(simulations)
 
@@ -178,14 +194,20 @@ class MarketplaceSimulator(HerdingSimulator):
         return pred_ratings
 
     def simulate_marketplace(
-        self, marketplace_id: int, queue: Queue, existing_reviews: Optional[List[np.ndarray]] = None
+        self,
+        marketplace_id: int,
+        queue: Queue,
+        existing_reviews: Optional[List[np.ndarray]] = None,
+        product_embeddings: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         total_visitors = self.num_total_marketplace_reviews * 30
         # Each product gets 5 reviews, 1 for each star to start off. This is necessary to prevent the
         # "cold start" problem when avg. rating needs to be calculated for products that have not accumulated
         # ratings yet
         simulated_reviews = [deque([np.ones(5)], maxlen=total_visitors) for product in range(self.num_products)]
-        product_embeddings, _ = self.embedding_density_estimator.product_model.sample(n_samples=self.num_products)
+        if product_embeddings is None:
+            # Sample the product embeddings if they are already not provided
+            product_embeddings, _ = self.embedding_density_estimator.product_model.sample(n_samples=self.num_products)
         pred_product_ratings = self.predict_ratings_from_embeddings(product_embeddings.copy())
         # Maintain a counter of total ratings on the platform - this total ignores the 1st 5 reviews
         # added to all products by default

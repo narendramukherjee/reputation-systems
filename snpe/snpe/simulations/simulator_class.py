@@ -63,6 +63,7 @@ class BaseSimulator:
         num_reviews_per_simulation: Optional[np.ndarray] = None,
         simulation_parameters: Optional[dict] = None,
         existing_reviews: Optional[List[np.ndarray]] = None,
+        **kwargs,
     ) -> None:
         if existing_reviews is not None:
             assert (
@@ -77,8 +78,8 @@ class BaseSimulator:
             TOTAL reviews per product desired
             """
             # Run checks on the shape and initial values of the review timeseries provided. These checks remove
-            # the first value in the timeseries before returning it (as that first value is automatically re-appended)
-            # during simulations
+            # the first value in the timeseries before returning it (as that first value is automatically re-appended
+            # during simulations)
             existing_reviews = check_existing_reviews(existing_reviews)
             # Also pick num_products = num_simulations from the provided existing reviews if the tests succeed. The
             # provided num_simulations will then be ignored
@@ -304,9 +305,10 @@ class DoubleRhoSimulator(SingleRhoSimulator):
     def decision_to_leave_review(self, delta: float, simulation_id: int) -> bool:
         # Right now, we don't make the very first user always leave a review - maybe change later
         # Pull out the single rho which will be used in the decision to rate
-        rho = self.simulation_parameters["rho"][simulation_id]
+        rho = self.yield_simulation_param_per_visitor(simulation_id, "rho")
         # Return the review only if mismatch is higher than rho
         # We use two rhos here - rho[0] is for negative mismatch, and rho[1] for positive mismatch
+        assert isinstance(rho, np.ndarray), f"Expected np.ndarray type for rho, found {type(rho)} instead"
         assert rho.shape == (2,), f"Expecting shape (2,) for rho, got {rho.shape} instead"
         # Tendency to rate governs baseline probability of returning review
         if np.random.random() <= self.tendency_to_rate:
