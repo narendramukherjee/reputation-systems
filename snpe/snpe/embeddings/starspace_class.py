@@ -1,23 +1,21 @@
 import multiprocessing as mp
-import subprocess
-import sys
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 from snpe.utils.functions import terminal_execute
-from snpe.utils.tqdm_utils import tqdm_joblib
 from tqdm import tqdm
 
 from . import ARTIFACT_PATH, BINARY_PATH, STARSPACE_PARAMS
 
 
 class StarSpaceEmbedder:
-    def __init__(self):
-        self.starspace_binary = BINARY_PATH / "starspace"
-        self.starspace_output = ARTIFACT_PATH / "productspace"
+    def __init__(self, binary_path: Path = BINARY_PATH, artifact_path: Path = ARTIFACT_PATH):
+        self.starspace_binary = binary_path / "starspace"
+        self.starspace_output = artifact_path / "productspace"
         self.artifact_path = ARTIFACT_PATH
         self.starspace_params = STARSPACE_PARAMS
         self.starspace_params["thread"] = mp.cpu_count()

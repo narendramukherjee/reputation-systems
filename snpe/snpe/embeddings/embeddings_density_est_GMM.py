@@ -1,6 +1,7 @@
 import os
 import pickle
 
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
@@ -12,8 +13,8 @@ from . import ARTIFACT_PATH, STARSPACE_PARAMS
 
 
 class EmbeddingDensityGMM:
-    def __init__(self, n_components: int = 10, n_init: int = 5) -> None:
-        self.artifact_path = ARTIFACT_PATH
+    def __init__(self, n_components: int = 10, n_init: int = 5, artifact_path: Path = ARTIFACT_PATH) -> None:
+        self.artifact_path = artifact_path
         # Assert that starspace training has been done before embedding->rating predictor is used
         assert os.path.exists(
             self.artifact_path / "productspace"
@@ -25,10 +26,20 @@ class EmbeddingDensityGMM:
         self.n_init = n_init
         # 2 separate models, one for products and the other for users
         self.product_model = GaussianMixture(
-            n_components=self.n_components, n_init=self.n_init, max_iter=500, random_state=42, verbose=2, verbose_interval=20
+            n_components=self.n_components,
+            n_init=self.n_init,
+            max_iter=500,
+            random_state=42,
+            verbose=2,
+            verbose_interval=20,
         )
         self.user_model = GaussianMixture(
-            n_components=self.n_components, n_init=self.n_init, max_iter=500, random_state=42, verbose=2, verbose_interval=20
+            n_components=self.n_components,
+            n_init=self.n_init,
+            max_iter=500,
+            random_state=42,
+            verbose=2,
+            verbose_interval=20,
         )
 
     def process_input_data(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -64,20 +75,24 @@ class EmbeddingDensityGMM:
         )
         product_model_score = self.product_model.score(product_embeddings[product_test_idx])
         user_model_score = self.user_model.score(user_embeddings[user_test_idx])
-        print(f"""
+        print(
+            f"""
             Report for product embedding GMM density estimator:
             Model score: {product_model_score}
             Basline score: {product_baseline_score}
             Model improvement over baseline:
             {100 * (product_model_score - product_baseline_score) / product_baseline_score} percent
-        """)
-        print(f"""
+        """
+        )
+        print(
+            f"""
             Report for user embedding GMM density estimator:
             Model score: {user_model_score}
             Basline score: {user_baseline_score}
             Model improvement over baseline:
             {100 * (user_model_score - user_baseline_score) / user_baseline_score} percent
-        """)
+        """
+        )
 
     def train_test_split(self, num_samples: int, test_set_frac: float = 0.1) -> Tuple[np.ndarray, np.ndarray]:
         idx = np.random.permutation(num_samples).astype("int")
@@ -111,7 +126,7 @@ class EmbeddingDensityGMM:
         model_dict = {
             "artifact_path": self.artifact_path,
             "product_model": self.product_model,
-            "user_model": self.user_model
+            "user_model": self.user_model,
         }
         with open(self.artifact_path / (self.__class__.__name__ + ".pkl"), "wb") as f:
             pickle.dump(model_dict, f)

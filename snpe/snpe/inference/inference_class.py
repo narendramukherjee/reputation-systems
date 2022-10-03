@@ -218,7 +218,7 @@ class HistogramInference(BaseInference):
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
                 found {self.simulator_type} instead
                 """
             )

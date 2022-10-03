@@ -18,10 +18,10 @@ from . import ARTIFACT_PATH, STARSPACE_PARAMS
 
 
 class EmbeddingRatingPredictor:
-    def __init__(self, predict_fractions: float = False):
+    def __init__(self, predict_fractions: bool = False, artifact_path: Path = ARTIFACT_PATH):
         torch.set_num_threads(mp.cpu_count())
         print(f"\t Device set to cpu, using torch num threads={torch.get_num_threads()}")
-        self.artifact_path = ARTIFACT_PATH
+        self.artifact_path = artifact_path
         # Assert that starspace training has been done before embedding->rating predictor is used
         assert os.path.exists(
             self.artifact_path / "productspace"
@@ -181,10 +181,7 @@ class EmbeddingRatingPredictor:
         print(f"Loss improved by {percent_improvement} percent due to NN model")
 
     def save(self) -> None:
-        model_dict = {
-            "artifact_path": self.artifact_path,
-            "model": self.model
-        }
+        model_dict = {"artifact_path": self.artifact_path, "model": self.model}
         with open(self.artifact_path / (self.__class__.__name__ + ".pkl"), "wb") as f:
             pickle.dump(model_dict, f)
 
