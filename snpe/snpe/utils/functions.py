@@ -102,7 +102,10 @@ def check_existing_reviews(existing_reviews: List[np.ndarray]) -> List[np.ndarra
             None
         else:
             raise ValueError(
-                f"Found unexpected first histogram in review timseries: \n {existing_reviews[product][0, :]}"
+                f"""
+                For product {product}, found unexpected first histogram in review timseries:
+                \n {existing_reviews[product][0, :]}
+                """
             )
         existing_reviews[product] = existing_reviews[product][1:, :]
     return existing_reviews
