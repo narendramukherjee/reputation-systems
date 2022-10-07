@@ -2,6 +2,7 @@ import multiprocessing as mp
 
 from collections import deque
 from multiprocessing import Manager, Queue
+from pathlib import Path
 from threading import Thread
 from typing import Deque, List, Optional
 
@@ -11,6 +12,7 @@ import torch
 
 from joblib import Parallel, delayed
 from scipy.spatial.distance import cdist
+from snpe.embeddings import ARTIFACT_PATH
 from snpe.embeddings.embeddings_density_est_GMM import EmbeddingDensityGMM
 from snpe.embeddings.embeddings_to_ratings import EmbeddingRatingPredictor
 from snpe.utils.functions import check_existing_reviews, check_simulation_parameters
@@ -27,8 +29,8 @@ class MarketplaceSimulator(HerdingSimulator):
         self.consideration_set_size = params["consideration_set_size"]
         super(MarketplaceSimulator, self).__init__(params)
 
-    def load_embedding_density_estimators(self) -> None:
-        self.embedding_density_estimator = EmbeddingDensityGMM()
+    def load_embedding_density_estimators(self, artifact_path: Path) -> None:
+        self.embedding_density_estimator = EmbeddingDensityGMM(artifact_path=artifact_path)
         self.embedding_density_estimator.load()
         print(f"Loaded product embedding density estimator: \n {self.embedding_density_estimator.product_model}")
         print(f"Loaded user embedding density estimator: \n {self.embedding_density_estimator.user_model}")
@@ -42,8 +44,8 @@ class MarketplaceSimulator(HerdingSimulator):
             same shape to be able to calculate cosine similarities between them.
             """
 
-    def load_embedding_rating_predictor(self) -> None:
-        self.embedding_rating_predictor = EmbeddingRatingPredictor()
+    def load_embedding_rating_predictor(self, artifact_path: Path) -> None:
+        self.embedding_rating_predictor = EmbeddingRatingPredictor(artifact_path=artifact_path)
         self.embedding_rating_predictor.load()
         print(f"Loaded embedding -> rating predictor model: \n {self.embedding_rating_predictor.model}")
 
@@ -67,6 +69,7 @@ class MarketplaceSimulator(HerdingSimulator):
         simulation_parameters: dict = None,
         existing_reviews: Optional[List[np.ndarray]] = None,
         product_embeddings: Optional[np.ndarray] = None,
+        embeddings_artifact_path: Path = ARTIFACT_PATH,
         **kwargs,
     ) -> None:
         assert (
@@ -116,8 +119,8 @@ class MarketplaceSimulator(HerdingSimulator):
             simulation_parameters, num_simulations * self.num_products
         )
         self.simulation_parameters = simulation_parameters
-        self.load_embedding_density_estimators()
-        self.load_embedding_rating_predictor()
+        self.load_embedding_density_estimators(artifact_path=embeddings_artifact_path)
+        self.load_embedding_rating_predictor(artifact_path=embeddings_artifact_path)
         # Change the random_state of the embedding density estimators to None
         # This is needed to get distinct embeddings during sampling, otherwise all marketplaces and users end up
         # being the same
