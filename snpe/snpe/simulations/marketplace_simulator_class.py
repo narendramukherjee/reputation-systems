@@ -231,6 +231,9 @@ class MarketplaceSimulator(HerdingSimulator):
                         """
                     current_total_marketplace_reviews += 1
                     total_visitors -= 1
+                    # Since we are following the total number of marketplace ratings (=existing reviews + new reviews),
+                    # we put progress on the multi-progressbar as if a new rating was accumulated
+                    queue.put(f"update{marketplace_id}")
 
         for visitor in range(total_visitors):
             chosen_product = self.simulate_visitor_choice(product_embeddings, simulated_reviews)
