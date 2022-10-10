@@ -220,7 +220,13 @@ class MarketplaceSimulator(HerdingSimulator):
             for product in range(self.num_products):
                 product_reviews = existing_reviews[product]
                 for review in product_reviews:
-                    simulated_reviews[product].append(review)
+                    # We use the same manner of appending existing review histograms to simulated_reviews as if
+                    # those histograms were actually produced during simulations. This ensures that the same dtype is
+                    # appended to the deque always and keeps the size of the deque as small as possible
+                    current_histogram = simulated_reviews[product][-1].copy()
+                    rating_index = np.where(review - current_histogram)[0][0]
+                    current_histogram[rating_index] += 1
+                    simulated_reviews[product].append(current_histogram)
                     if len(simulated_reviews[product]) > 1:
                         assert (
                             np.sum(simulated_reviews[product][-1]) - np.sum(simulated_reviews[product][-2])
