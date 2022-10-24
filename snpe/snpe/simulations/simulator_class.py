@@ -485,7 +485,7 @@ class RatingScaleSimulator(DoubleHerdingSimulator):
         # The actual limit can be higher than this value, this is the lower bound of the limit
         # Delta (expected-experience) will be compared to this limit, and if delta < limit, a 1 star rating is left
         # The actual limit of 1 star ratings will lie between one_star_lowest_limit and 0.5*one_star_lowest_limit
-        self.one_star_lowest_limit = params["one_star_lower_limit"]
+        self.one_star_lowest_limit = params["one_star_lowest_limit"]
         # Limit of 5 star ratings should be positive, and vice-versa for 1 star ratings
         assert (
             self.five_star_highest_limit > 0
