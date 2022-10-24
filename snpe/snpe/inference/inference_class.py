@@ -54,13 +54,27 @@ class BaseInference:
                 }
             )
             simulator = simulator_class.DoubleHerdingSimulator(params)
-        elif self.simulator_type == "marketplace":
-            # The additional parametes for the marketplace simulator, will be overridden by the loaded simulator
+        elif self.simulator_type == "rating_scale":
+            # As with the other simulators, the parameter values here are placeholders and will be overriden
             params.update(
                 {
                     "previous_rating_measure": "mean",
                     "min_reviews_for_herding": 5,
                     "herding_differentiating_measure": "mean",
+                    "one_star_lowest_limit": -1.5,
+                    "five_star_highest_limit": 1.5,
+                }
+            )
+            simulator = simulator_class.RatingScaleSimulator(params)
+        elif self.simulator_type == "marketplace":
+            # The additional parameters for the marketplace simulator, will be overridden by the loaded simulator
+            params.update(
+                {
+                    "previous_rating_measure": "mean",
+                    "min_reviews_for_herding": 5,
+                    "herding_differentiating_measure": "mean",
+                    "one_star_lowest_limit": -1.5,
+                    "five_star_highest_limit": 1.5,
                     "num_products": 1400,
                     "num_total_marketplace_reviews": 140_000,
                     "consideration_set_size": 5,
@@ -70,8 +84,8 @@ class BaseInference:
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
-                found {self.simulator_type} instead
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding, rating_scale
+                or marketplace. Found {self.simulator_type} instead
                 """
             )
 
@@ -80,9 +94,7 @@ class BaseInference:
         # (num_marketplaces X num_products, ) to shape (num_simulations, )
         if self.simulator_type == "marketplace":
             # https://mathieularose.com/how-not-to-flatten-a-list-of-lists-in-python
-            simulator.simulations = np.array(
-                list(itertools.chain.from_iterable(simulator.simulations)), dtype=object
-            )
+            simulator.simulations = np.array(list(itertools.chain.from_iterable(simulator.simulations)), dtype=object)
         self.simulator = simulator
 
     def infer_snpe_posterior(
@@ -148,7 +160,7 @@ class HistogramInference(BaseInference):
         # Get the simulation parameters
         if self.simulator_type in ("single_rho", "double_rho"):
             parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
-        elif self.simulator_type in ("single_herding", "marketplace"):
+        elif self.simulator_type == "single_herding":
             parameters = np.hstack(
                 (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"][:, None])
             )
@@ -162,11 +174,29 @@ class HistogramInference(BaseInference):
             np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
             np.testing.assert_array_equal(parameters[:, 2:], self.simulator.simulation_parameters["h_p"])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
+        elif self.simulator_type in ("rating_scale", "marketplace"):
+            parameters = np.hstack(
+                (
+                    self.simulator.simulation_parameters["rho"],
+                    self.simulator.simulation_parameters["h_p"],
+                    self.simulator.simulation_parameters["p_1"][:, None],
+                    self.simulator.simulation_parameters["p_2"][:, None],
+                    self.simulator.simulation_parameters["p_4"][:, None],
+                    self.simulator.simulation_parameters["p_5"][:, None],
+                )
+            )
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
+            np.testing.assert_array_equal(parameters[:, 2:4], self.simulator.simulation_parameters["h_p"])
+            np.testing.assert_array_equal(parameters[:, 4], self.simulator.simulation_parameters["p_1"])
+            np.testing.assert_array_equal(parameters[:, 5], self.simulator.simulation_parameters["p_2"])
+            np.testing.assert_array_equal(parameters[:, 6], self.simulator.simulation_parameters["p_4"])
+            np.testing.assert_array_equal(parameters[:, 7], self.simulator.simulation_parameters["p_5"])
+            parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
-                found {self.simulator_type} instead
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding, rating_scale
+                or marketplace. Found {self.simulator_type} instead
                 """
             )
 
@@ -211,15 +241,17 @@ class HistogramInference(BaseInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type in ("single_herding", "marketplace"):
+        elif self.simulator_type == "single_herding":
             num_parameters = 3
         elif self.simulator_type == "double_herding":
             num_parameters = 4
+        elif self.simulator_type in ("rating_scale", "marketplace"):
+            num_parameters = 8
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding or marketplace
-                found {self.simulator_type} instead
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding, rating_scale
+                or marketplace. Found {self.simulator_type} instead
                 """
             )
         posterior_samples = np.empty((num_samples, observations.shape[0], num_parameters), dtype=np.float64)
@@ -287,24 +319,30 @@ class TimeSeriesInference(HistogramInference):
             num_parameters = 1
         elif self.simulator_type == "double_rho":
             num_parameters = 2
-        elif self.simulator_type in ("single_herding", "marketplace"):
+        elif self.simulator_type == "single_herding":
             num_parameters = 3
         elif self.simulator_type == "double_herding":
             num_parameters = 4
+        elif self.simulator_type in ("rating_scale", "marketplace"):
+            num_parameters = 8
         else:
             raise ValueError(
                 f"""
-                simulator_type has to be one of single_rho, double_rho, single_herding or double_herding
-                found {self.simulator_type} instead
+                simulator_type has to be one of single_rho, double_rho, single_herding, double_herding, rating_scale
+                or marketplace. Found {self.simulator_type} instead
                 """
             )
         posterior_samples = np.empty((num_samples, observations.size()[0], num_parameters), dtype=np.float64)
 
         for row in range(observations.size()[0]):
             if self.device == "cuda":
-                posterior_samples[:, row, :] = self.posterior.sample(
-                    (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
-                ).cpu().numpy()
+                posterior_samples[:, row, :] = (
+                    self.posterior.sample(
+                        (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False
+                    )
+                    .cpu()
+                    .numpy()
+                )
             else:
                 posterior_samples[:, row, :] = self.posterior.sample(
                     (num_samples,), x=observations[row, :, :][None, :, :], show_progress_bars=False

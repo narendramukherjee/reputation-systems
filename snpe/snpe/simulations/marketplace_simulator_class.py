@@ -19,10 +19,10 @@ from snpe.utils.functions import check_existing_reviews, check_simulation_parame
 from snpe.utils.statistics import review_histogram_means
 from snpe.utils.tqdm_utils import multi_progressbar
 
-from .simulator_class import HerdingSimulator
+from .simulator_class import RatingScaleSimulator
 
 
-class MarketplaceSimulator(HerdingSimulator):
+class MarketplaceSimulator(RatingScaleSimulator):
     def __init__(self, params: dict):
         self.num_products = params["num_products"]
         self.num_total_marketplace_reviews = params["num_total_marketplace_reviews"]

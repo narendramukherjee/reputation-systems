@@ -51,7 +51,7 @@ class BaseSimulator:
     def mismatch_calculator(self, experience: float, expected_experience: float) -> float:
         raise NotImplementedError
 
-    def rating_calculator(self, delta: float) -> int:
+    def rating_calculator(self, delta: float, simulation_id: int) -> int:
         raise NotImplementedError
 
     def decision_to_leave_review(self, delta: float, simulation_id: int) -> bool:
@@ -187,7 +187,7 @@ class SingleRhoSimulator(BaseSimulator):
         delta = self.mismatch_calculator(experience, expected_experience)
 
         # Calculate the index of the rating the user wants to leave [0, 4]
-        rating_index = self.rating_calculator(delta)
+        rating_index = self.rating_calculator(delta, simulation_id)
         # Get the decision to leave review (True/False)
         decision_to_rate = self.decision_to_leave_review(delta, simulation_id)
 
@@ -209,7 +209,9 @@ class SingleRhoSimulator(BaseSimulator):
         """
         return experience - expected_experience
 
-    def rating_calculator(self, delta: float) -> int:
+    def rating_calculator(self, delta: float, simulation_id: int) -> int:
+        # Simulation id is ignored here as the cutoffs for delta to determine different star ratings are
+        # fixed in this case. However, that will not be the case for the RatingScaleSimulator
         if delta <= -1.5:
             return 0
         elif delta > -1.5 and delta <= -0.5:
@@ -470,3 +472,79 @@ class DoubleHerdingSimulator(HerdingSimulator):
             return h_p[0]
         else:
             return h_p[1]
+
+
+class RatingScaleSimulator(DoubleHerdingSimulator):
+    def __init__(self, params: dict):
+        # The highest value that limits 5 star ratings
+        # The actual limit can be lower than this value, this is the upper bound of the limit
+        # Delta (expected-experience) will be compared to this limit, and if delta > limit, a 5 star rating is left
+        # The actual limit of 5 star ratings will lie between 0.5*five_star_highest_limit and five_star_highest_limit
+        self.five_star_highest_limit = params["five_star_highest_limit"]
+        # Similarly, we have a lowest value that limits 1 star ratings
+        # The actual limit can be higher than this value, this is the lower bound of the limit
+        # Delta (expected-experience) will be compared to this limit, and if delta < limit, a 1 star rating is left
+        # The actual limit of 1 star ratings will lie between one_star_lowest_limit and 0.5*one_star_lowest_limit
+        self.one_star_lowest_limit = params["one_star_lower_limit"]
+        # Limit of 5 star ratings should be positive, and vice-versa for 1 star ratings
+        assert (
+            self.five_star_highest_limit > 0
+        ), f"""
+        The highest limit of delta for 5 star ratings should be positive, found {self.five_star_highest_limit}
+        """
+        assert (
+            self.one_star_lowest_limit < 0
+        ), f"""
+        The lowest limit of delta for 1 star ratings should be negative, found {self.one_star_lowest_limit}
+        """
+        super(RatingScaleSimulator, self).__init__(params)
+
+    @classmethod
+    def generate_simulation_parameters(cls, num_simulations) -> dict:
+        # This generates the rho and h_p herding parameters from the classmethod of the double herding simulator
+        # Then we will add the p values that define the rating scales on top
+        # These p values determine how we will split up the space from one_star_lowest_limit to five_star_lowest_limit
+        # over the scale on which delta values are compared and star ratings are determined
+        simulation_parameters = DoubleHerdingSimulator.generate_simulation_parameters(num_simulations)
+        # p_5 determines the actual limit to which delta is compared to get 5 star ratings
+        # That limit = five_star_highest_limit * p_5
+        # So if p_5 = 1 (highest value), limit = five_star_highest_limit
+        # If p_5 = 0.5 (lowest value), limit = 0.5 * five_star_highest_limit
+        # p_4 determines the actual limit to which delta is compared to get 4 star ratings
+        # That limit = five_star_highest_limit * p_5 * p_4
+        # So 3 star ratings come from 0 to five_star_highest_limit * p_5 * p_4
+        # And 4 star ratings come from five_star_highest_limit * p_5 * p_4 to five_star_highest_limit * p_5
+        p_5 = 0.5 * np.random.random(size=num_simulations) + 0.5
+        p_4 = 0.5 * np.random.random(size=num_simulations) + 0.25
+        # p_1 determines the actual limit to which delta is compared to get 1 star ratings
+        # That limit = one_star_lowest_limit * p_1
+        # So if p_1 = 1 (highest value), limit = one_star_lowest_limit
+        # If p_1 = 0.5 (lowest value), limit = 0.5 * one_star_lowest_limit
+        # p_2 determines the actual limit to which delta is compared to get 2 star ratings
+        # That limit = one_star_lowest_limit * p_1 * p_2
+        # So 3 star ratings come from one_star_lowest_limit * p_1 * p_2 to 0
+        # And 2 star ratings come from one_star_lowest_limit * p_1 to one_star_lowest_limit * p_1 * p_2
+        p_1 = 0.5 * np.random.random(size=num_simulations) + 0.5
+        p_2 = 0.5 * np.random.random(size=num_simulations) + 0.25
+        simulation_parameters["p_5"] = np.tile(p_5[None, :], (simulation_parameters["rho"].shape[0], 1))
+        simulation_parameters["p_4"] = np.tile(p_4[None, :], (simulation_parameters["rho"].shape[0], 1))
+        simulation_parameters["p_2"] = np.tile(p_2[None, :], (simulation_parameters["rho"].shape[0], 1))
+        simulation_parameters["p_1"] = np.tile(p_1[None, :], (simulation_parameters["rho"].shape[0], 1))
+        return simulation_parameters
+
+    def rating_calculator(self, delta: float, simulation_id: int) -> int:
+        # Pull out the rating scale related parameters that correspond to this simulation id
+        p_1 = self.yield_simulation_param_per_visitor(simulation_id, "p_1")
+        p_2 = self.yield_simulation_param_per_visitor(simulation_id, "p_2")
+        p_4 = self.yield_simulation_param_per_visitor(simulation_id, "p_4")
+        p_5 = self.yield_simulation_param_per_visitor(simulation_id, "p_5")
+        if delta <= (self.one_star_lowest_limit * p_1):
+            return 0
+        elif delta > (self.one_star_lowest_limit * p_1) and delta <= (self.one_star_lowest_limit * p_1 * p_2):
+            return 1
+        elif delta > (self.one_star_lowest_limit * p_1 * p_2) and delta <= (self.five_star_highest_limit * p_5 * p_4):
+            return 2
+        elif delta > (self.five_star_highest_limit * p_5 * p_4) and delta <= (self.five_star_highest_limit * p_5):
+            return 3
+        else:
+            return 4
