@@ -103,7 +103,10 @@ def main() -> None:
     )
     parser.add_argument("--compute_location", required=True, type=str, choices=["local", "gcs"])
     parser.add_argument(
-        "--simulator_type", required=True, type=str, choices=["double_rho", "herding", "double_herding", "marketplace"]
+        "--simulator_type",
+        required=True,
+        type=str,
+        choices=["double_rho", "herding", "double_herding", "rating_scale", "marketplace"],
     )
     args, *_ = parser.parse_known_args()
 
