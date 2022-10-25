@@ -158,39 +158,53 @@ class HistogramInference(BaseInference):
         if self.simulation_type == "timeseries":
             self.padded_simulation_length = int(simulations.size()[-1])
         # Get the simulation parameters
+        # Remember that the simulation parameter arrays have num_dist_samples as their first axis
+        # This is there to allow posterior distributions of parameters to be sampled during simulations, and
+        # num_dist_samples refers to the number of posterior samples available
+        # However, when simulating from scratch (and running inference thereafter) there is no meaning to
+        # num_dist_samples. We resolve this by just tiling the parameter arrays a small number of times (like 10)
+        # to recreate the effect of sampling parameters from a distribution
+        # So, that means that during inference we can just pick 1 copy of these parameter arrays and ignore the
+        # others (which are all identical) - we just pick the first copy here
         if self.simulator_type in ("single_rho", "double_rho"):
-            parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"]).type(torch.FloatTensor)
+            parameters = torch.from_numpy(self.simulator.simulation_parameters["rho"][0, :, :]).type(torch.FloatTensor)
         elif self.simulator_type == "single_herding":
             parameters = np.hstack(
-                (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"][:, None])
+                (
+                    self.simulator.simulation_parameters["rho"][0, :, :],
+                    self.simulator.simulation_parameters["h_p"][0, :, None],
+                )
             )
-            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
-            np.testing.assert_array_equal(parameters[:, 2], self.simulator.simulation_parameters["h_p"])
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"][0])
+            np.testing.assert_array_equal(parameters[:, 2], self.simulator.simulation_parameters["h_p"][0])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         elif self.simulator_type == "double_herding":
             parameters = np.hstack(
-                (self.simulator.simulation_parameters["rho"], self.simulator.simulation_parameters["h_p"])
+                (
+                    self.simulator.simulation_parameters["rho"][0, :, :],
+                    self.simulator.simulation_parameters["h_p"][0, :, :],
+                )
             )
-            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
-            np.testing.assert_array_equal(parameters[:, 2:], self.simulator.simulation_parameters["h_p"])
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"][0])
+            np.testing.assert_array_equal(parameters[:, 2:], self.simulator.simulation_parameters["h_p"][0])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         elif self.simulator_type in ("rating_scale", "marketplace"):
             parameters = np.hstack(
                 (
-                    self.simulator.simulation_parameters["rho"],
-                    self.simulator.simulation_parameters["h_p"],
-                    self.simulator.simulation_parameters["p_1"][:, None],
-                    self.simulator.simulation_parameters["p_2"][:, None],
-                    self.simulator.simulation_parameters["p_4"][:, None],
-                    self.simulator.simulation_parameters["p_5"][:, None],
+                    self.simulator.simulation_parameters["rho"][0, :, :],
+                    self.simulator.simulation_parameters["h_p"][0, :, :],
+                    self.simulator.simulation_parameters["p_1"][0, :, None],
+                    self.simulator.simulation_parameters["p_2"][0, :, None],
+                    self.simulator.simulation_parameters["p_4"][0, :, None],
+                    self.simulator.simulation_parameters["p_5"][0, :, None],
                 )
             )
-            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"])
-            np.testing.assert_array_equal(parameters[:, 2:4], self.simulator.simulation_parameters["h_p"])
-            np.testing.assert_array_equal(parameters[:, 4], self.simulator.simulation_parameters["p_1"])
-            np.testing.assert_array_equal(parameters[:, 5], self.simulator.simulation_parameters["p_2"])
-            np.testing.assert_array_equal(parameters[:, 6], self.simulator.simulation_parameters["p_4"])
-            np.testing.assert_array_equal(parameters[:, 7], self.simulator.simulation_parameters["p_5"])
+            np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"][0])
+            np.testing.assert_array_equal(parameters[:, 2:4], self.simulator.simulation_parameters["h_p"][0])
+            np.testing.assert_array_equal(parameters[:, 4], self.simulator.simulation_parameters["p_1"][0])
+            np.testing.assert_array_equal(parameters[:, 5], self.simulator.simulation_parameters["p_2"][0])
+            np.testing.assert_array_equal(parameters[:, 6], self.simulator.simulation_parameters["p_4"][0])
+            np.testing.assert_array_equal(parameters[:, 7], self.simulator.simulation_parameters["p_5"][0])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         else:
             raise ValueError(
