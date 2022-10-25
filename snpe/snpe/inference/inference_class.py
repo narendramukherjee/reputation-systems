@@ -151,7 +151,7 @@ class HistogramInference(BaseInference):
     ) -> None:
         # Convert the simulations and parameters to pytorch tensors to use with sbi
         if simulation_transform is not None:
-            simulations = simulation_transform(self.simulator.simulations)
+            simulations = simulation_transform(self.simulator.simulations, self.device)
         else:
             simulations = torch.from_numpy(self.simulator.simulations).type(torch.FloatTensor)
         # Add the length of the padded simulations (if timeseries) for later use
