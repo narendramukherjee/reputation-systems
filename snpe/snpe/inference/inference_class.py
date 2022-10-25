@@ -244,7 +244,7 @@ class HistogramInference(BaseInference):
             inference._neural_net.to(device="cpu")
         # Get the training related metrics
         self.best_validation_log_prob = inference._summary["best_validation_log_prob"][-1]
-        self.training_epochs = inference._summary["epochs"][-1]
+        self.training_epochs = inference._summary["epochs_trained"][-1]
         # Build the posterior from the density estimator
         self.posterior = inference.build_posterior(density_estimator)
 
