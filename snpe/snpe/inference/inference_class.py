@@ -243,7 +243,7 @@ class HistogramInference(BaseInference):
         if self.device == "cuda":
             inference._neural_net.to(device="cpu")
         # Get the training related metrics
-        self.best_validation_log_prob = inference._summary["best_validation_log_probs"][-1]
+        self.best_validation_log_prob = inference._summary["best_validation_log_prob"][-1]
         self.training_epochs = inference._summary["epochs"][-1]
         # Build the posterior from the density estimator
         self.posterior = inference.build_posterior(density_estimator)
