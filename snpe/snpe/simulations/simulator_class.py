@@ -354,7 +354,7 @@ class HerdingSimulator(DoubleRhoSimulator):
         return simulation_parameters
 
     def simulate_visitor_journey(
-        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True, **kwargs
+        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False, **kwargs
     ) -> Union[int, None]:
         # Run the visitor journey the same way at first
         rating_index = super(HerdingSimulator, self).simulate_visitor_journey(
@@ -376,7 +376,7 @@ class HerdingSimulator(DoubleRhoSimulator):
         return h_p
 
     def herding(
-        self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = True
+        self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False
     ) -> int:
         # Pull out the herding parameter which will be used in this simulation
         # This step is trivial when using a single herding h_p, but becomes important when using 2
@@ -474,7 +474,7 @@ class DoubleHerdingSimulator(HerdingSimulator):
             return h_p[1]
 
 
-class RatingScaleSimulator(DoubleHerdingSimulator):
+class RatingScaleSimulator(HerdingSimulator):
     def __init__(self, params: dict):
         # The highest value that limits 5 star ratings
         # The actual limit can be lower than this value, this is the upper bound of the limit
