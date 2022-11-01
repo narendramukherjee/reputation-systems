@@ -63,6 +63,7 @@ class BaseInference:
                     "herding_differentiating_measure": "mean",
                     "one_star_lowest_limit": -1.5,
                     "five_star_highest_limit": 1.5,
+                    "max_bias_5_star": 0.5,
                 }
             )
             simulator = simulator_class.RatingScaleSimulator(params)
@@ -75,6 +76,7 @@ class BaseInference:
                     "herding_differentiating_measure": "mean",
                     "one_star_lowest_limit": -1.5,
                     "five_star_highest_limit": 1.5,
+                    "max_bias_5_star": 0.5,
                     "num_products": 1400,
                     "num_total_marketplace_reviews": 140_000,
                     "consideration_set_size": 5,
@@ -192,19 +194,21 @@ class HistogramInference(BaseInference):
             parameters = np.hstack(
                 (
                     self.simulator.simulation_parameters["rho"][0, :, :],
-                    self.simulator.simulation_parameters["h_p"][0, :, :],
+                    self.simulator.simulation_parameters["h_p"][0, :, None],
                     self.simulator.simulation_parameters["p_1"][0, :, None],
                     self.simulator.simulation_parameters["p_2"][0, :, None],
                     self.simulator.simulation_parameters["p_4"][0, :, None],
                     self.simulator.simulation_parameters["p_5"][0, :, None],
+                    self.simulator.simulation_parameters["bias_5_star"][0, :, None]
                 )
             )
             np.testing.assert_array_equal(parameters[:, :2], self.simulator.simulation_parameters["rho"][0])
-            np.testing.assert_array_equal(parameters[:, 2:4], self.simulator.simulation_parameters["h_p"][0])
-            np.testing.assert_array_equal(parameters[:, 4], self.simulator.simulation_parameters["p_1"][0])
-            np.testing.assert_array_equal(parameters[:, 5], self.simulator.simulation_parameters["p_2"][0])
-            np.testing.assert_array_equal(parameters[:, 6], self.simulator.simulation_parameters["p_4"][0])
-            np.testing.assert_array_equal(parameters[:, 7], self.simulator.simulation_parameters["p_5"][0])
+            np.testing.assert_array_equal(parameters[:, 2], self.simulator.simulation_parameters["h_p"][0])
+            np.testing.assert_array_equal(parameters[:, 3], self.simulator.simulation_parameters["p_1"][0])
+            np.testing.assert_array_equal(parameters[:, 4], self.simulator.simulation_parameters["p_2"][0])
+            np.testing.assert_array_equal(parameters[:, 5], self.simulator.simulation_parameters["p_4"][0])
+            np.testing.assert_array_equal(parameters[:, 6], self.simulator.simulation_parameters["p_5"][0])
+            np.testing.assert_array_equal(parameters[:, 7], self.simulator.simulation_parameters["bias_5_star"][0])
             parameters = torch.from_numpy(parameters).type(torch.FloatTensor)
         else:
             raise ValueError(
