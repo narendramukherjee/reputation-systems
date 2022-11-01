@@ -505,7 +505,7 @@ class RatingScaleSimulator(HerdingSimulator):
         # Then we will add the p values that define the rating scales on top
         # These p values determine how we will split up the space from one_star_lowest_limit to five_star_lowest_limit
         # over the scale on which delta values are compared and star ratings are determined
-        simulation_parameters = DoubleHerdingSimulator.generate_simulation_parameters(num_simulations)
+        simulation_parameters = HerdingSimulator.generate_simulation_parameters(num_simulations)
         # p_5 determines the actual limit to which delta is compared to get 5 star ratings
         # That limit = five_star_highest_limit * p_5
         # So if p_5 = 1 (highest value), limit = five_star_highest_limit
