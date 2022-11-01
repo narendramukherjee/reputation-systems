@@ -526,10 +526,14 @@ class RatingScaleSimulator(HerdingSimulator):
         # And 2 star ratings come from one_star_lowest_limit * p_1 to one_star_lowest_limit * p_1 * p_2
         p_1 = 0.5 * np.random.random(size=num_simulations) + 0.5
         p_2 = 0.5 * np.random.random(size=num_simulations) + 0.25
+        # A final bias parameter that encodes bias towards 5 star ratings
+        # A user leaves a 5 star rating on the product (irrespective of experience) with this probability
+        bias_5_star = np.random.random(size=num_simulations)
         simulation_parameters["p_5"] = np.tile(p_5[None, :], (simulation_parameters["rho"].shape[0], 1))
         simulation_parameters["p_4"] = np.tile(p_4[None, :], (simulation_parameters["rho"].shape[0], 1))
         simulation_parameters["p_2"] = np.tile(p_2[None, :], (simulation_parameters["rho"].shape[0], 1))
         simulation_parameters["p_1"] = np.tile(p_1[None, :], (simulation_parameters["rho"].shape[0], 1))
+        simulation_parameters["bias_5_star"] = np.tile(bias_5_star[None, :], (simulation_parameters["rho"].shape[0], 1))
         return simulation_parameters
 
     def rating_calculator(self, delta: float, simulation_id: int) -> int:
@@ -548,3 +552,18 @@ class RatingScaleSimulator(HerdingSimulator):
             return 3
         else:
             return 4
+
+    def simulate_visitor_journey(
+        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False, **kwargs
+    ) -> Union[int, None]:
+        # Run the visitor journey the same way at first
+        rating_index = super(RatingScaleSimulator, self).simulate_visitor_journey(
+            simulated_reviews, simulation_id, use_h_u, **kwargs
+        )
+
+        # A user simply returns a 5 star rating with probability = bias_5_star
+        bias_5_star = self.yield_simulation_param_per_visitor(simulation_id, "bias_5_star")
+        if np.random.random() <= bias_5_star:
+            return 4
+        else:
+            return rating_index
