@@ -142,8 +142,8 @@ def main() -> None:
         )
     elif args.simulator_type in ("rating_scale", "marketplace"):
         parameter_prior = sbi_utils.BoxUniform(
-            low=torch.tensor([0.0, 0.0, 0.0, 0.0, 0.5, 0.25, 0.25, 0.5]).type(torch.FloatTensor),
-            high=torch.tensor([4.0, 4.0, 1.0, 1.0, 1.0, 0.75, 0.75, 1.0]).type(torch.FloatTensor),
+            low=torch.tensor([0.0, 0.0, 0.0, 0.5, 0.25, 0.25, 0.5, 0.0]).type(torch.FloatTensor),
+            high=torch.tensor([4.0, 4.0, 1.0, 1.0, 0.75, 0.75, 1.0, 1.0]).type(torch.FloatTensor),
             device="cuda",
         )
     else:
