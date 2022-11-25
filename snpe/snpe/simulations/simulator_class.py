@@ -3,7 +3,7 @@ import pickle
 
 from collections import deque
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Deque, List, Optional, Union
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class BaseSimulator:
         ), "Prior and simulated distributions of reviews should have the same shape"
         return self.review_prior + simulated_reviews
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
+    def simulate_visitor_journey(self, simulated_reviews: Deque, simulation_id: int, **kwargs) -> Union[int, None]:
         raise NotImplementedError
 
     def simulate_review_histogram(
@@ -169,9 +169,9 @@ class SingleRhoSimulator(BaseSimulator):
         # distribution of experiences
         return np.where(np.random.multinomial(1, expected_experience_dist))[0][0] + 1.0
 
-    def simulate_visitor_journey(self, simulated_reviews: np.ndarray, simulation_id: int, **kwargs) -> Union[int, None]:
+    def simulate_visitor_journey(self, simulated_reviews: Deque, simulation_id: int, **kwargs) -> Union[int, None]:
         # Convolve the current simulated review distribution with the prior to get the posterior of reviews
-        review_posterior = self.convolve_prior_with_existing_reviews(simulated_reviews)
+        review_posterior = self.convolve_prior_with_existing_reviews(simulated_reviews[-1])
 
         # Just make a single draw from the posterior Dirichlet dist of reviews to get the distribution
         # of the product experiences that the user expects
@@ -265,14 +265,14 @@ class SingleRhoSimulator(BaseSimulator):
                 if len(simulated_reviews) > 1:
                     assert (
                         np.sum(simulated_reviews[-1]) - np.sum(simulated_reviews[-2])
-                    ) == 1, f"""
+                    ) == 1, """
                     Please check the histograms provided in the array of existing reviews. These should be in the form
                     of cumulative histograms and should only add 1 rating at a time
                     """
                 total_visitors -= 1
 
         for visitor in range(total_visitors):
-            rating_index = self.simulate_visitor_journey(simulated_reviews[-1], simulation_id)
+            rating_index = self.simulate_visitor_journey(simulated_reviews, simulation_id)
             if rating_index is not None:
                 current_histogram = simulated_reviews[-1].copy()
                 current_histogram[rating_index] += 1
@@ -336,8 +336,22 @@ class HerdingSimulator(DoubleRhoSimulator):
         assert self.previous_rating_measure in [
             "mean",
             "mode",
-            "latest",
-        ], f"Can only use mean/mode/latest rating as previous rating, provided {self.previous_rating_measure} instead"
+            "mode of latest",
+        ], f"Can only use mean/mode/mode of latest as previous rating, provided {self.previous_rating_measure} instead"
+        if self.previous_rating_measure == "mode of latest":
+            assert (
+                "num_latest_reviews_for_herding" in params
+            ), """
+            Number of latest reviews to calculate mode needed if mode of latest is being used for herding
+            """
+            self.num_latest_reviews_for_herding = params["num_latest_reviews_for_herding"]
+            assert (
+                self.num_latest_reviews_for_herding < self.min_reviews_for_herding
+            ), f"""
+            Minimum {self.min_reviews_for_herding} required before herding can be done, but
+            {self.num_latest_reviews_for_herding} latest reviews to be actually used for mode calculation during herding,
+            so herding cannot actually be done before {self.num_latest_reviews_for_herding + 1} reviews accumulate
+            """
         assert (
             self.min_reviews_for_herding >= 1
         ), f"At least 1 review has to exist before herding can happen, found {self.min_reviews_for_herding} instead"
@@ -354,7 +368,7 @@ class HerdingSimulator(DoubleRhoSimulator):
         return simulation_parameters
 
     def simulate_visitor_journey(
-        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False, **kwargs
+        self, simulated_reviews: Deque, simulation_id: int, use_h_u: bool = False, **kwargs
     ) -> Union[int, None]:
         # Run the visitor journey the same way at first
         rating_index = super(HerdingSimulator, self).simulate_visitor_journey(
@@ -363,21 +377,30 @@ class HerdingSimulator(DoubleRhoSimulator):
 
         # If the decision to rate was true, modify the rating index according to the herding procedure
         # Don't initiate the herding procedure till at least the minimum number of reviews have come
-        if (rating_index is not None) and (np.sum(simulated_reviews) >= self.min_reviews_for_herding):
+        # Also since we add 5 reviews right at the beginning (timeseries begins with np.ones(5)), we have to
+        # subtract those from the total count to see if we have enough reviews to start herding
+        if (rating_index is not None) and (
+            np.sum(simulated_reviews[-1]) - np.sum(simulated_reviews[0]) >= self.min_reviews_for_herding
+        ):
             herded_rating_index = self.herding(rating_index, simulated_reviews, simulation_id, use_h_u)
             return herded_rating_index
         # Otherwise just return the original rating index (which is = None in this case)
         else:
             return rating_index
 
-    def choose_herding_parameter(self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int) -> float:
+    def choose_herding_parameter(self, rating_index: int, simulated_reviews: Deque, simulation_id: int) -> float:
         h_p = self.yield_simulation_param_per_visitor(simulation_id, "h_p")
         assert isinstance(h_p, float), f"Expecting a scalar value for the herding parameter, got {h_p} instead"
         return h_p
 
-    def herding(
-        self, rating_index: int, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False
-    ) -> int:
+    def herding(self, rating_index: int, simulated_reviews: Deque, simulation_id: int, use_h_u: bool = False) -> int:
+        # Check that the whole timeseries of simulated_reviews has been supplied
+        if len(simulated_reviews) == 1:
+            np.testing.assert_array_equal(simulated_reviews[0], np.ones(5))
+        else:
+            np.testing.assert_array_equal(
+                np.array([review.shape[0] for review in simulated_reviews]), 5 * np.ones(len(simulated_reviews))
+            )
         # Pull out the herding parameter which will be used in this simulation
         # This step is trivial when using a single herding h_p, but becomes important when using 2
         h_p = self.choose_herding_parameter(rating_index, simulated_reviews, simulation_id)
@@ -401,11 +424,13 @@ class HerdingSimulator(DoubleRhoSimulator):
             elif self.previous_rating_measure == "mode":
                 # WARNING: If the histogram has more than 1 mode, argmax will ONLY RETURN THE FIRST ONE
                 previous_rating_index = np.argmax(np.array(simulated_reviews[-1]))
+            elif self.previous_rating_measure == "mode of latest":
+                # Get the histogram of latest num_latest_reviews_for_herding, and pick the mode
+                # WARNING: If the histogram has more than 1 mode, argmax will ONLY RETURN THE FIRST ONE
+                latest_histogram = simulated_reviews[-1] - simulated_reviews[-self.num_latest_reviews_for_herding - 1]
+                previous_rating_index = np.argmax(latest_histogram)
             else:
-                # Latest rating index finding by subtracting the last 2 review histograms
-                previous_rating_index = np.where(np.array(simulated_reviews[-1]) - np.array(simulated_reviews[-2]))[0][
-                    0
-                ]
+                f"Can only use mean/mode/mode of latest as previous rating, provided {self.previous_rating_measure} instead"
             # Numpy inherits from the built-in float type, but not built-in int type. Therefore, we could check if h_p
             # was an instance of float at the start of this method, but can't use
             # isinstance(previous_rating_index, (float, int)) here.
@@ -413,9 +438,6 @@ class HerdingSimulator(DoubleRhoSimulator):
             assert np.issubdtype(
                 previous_rating_index, np.number
             ), f"Previous rating index should be a number, found {type(previous_rating_index)} instead"
-            assert (
-                np.sum(simulated_reviews[-1]) >= 1
-            ), f"Herding cannot be done when only {np.sum(simulated_reviews[-1])} reviews exist"
             # Return the average of the currently calculated rating and the previous rating measure
             # Convert to integer because this is used to index the rating histogram
             return int((rating_index + previous_rating_index) / 2)
@@ -447,7 +469,7 @@ class DoubleHerdingSimulator(HerdingSimulator):
         simulation_parameters["h_p"] = h_p_array
         return simulation_parameters
 
-    def choose_herding_parameter(self, rating_index, simulated_reviews: np.ndarray, simulation_id: int) -> float:
+    def choose_herding_parameter(self, rating_index, simulated_reviews: Deque, simulation_id: int) -> float:
         # Pull out the (2 valued) h_p corresponding to this simulation id
         h_p = self.yield_simulation_param_per_visitor(simulation_id, "h_p")
         # Confirm that h_p is 2-dimensional array
@@ -565,7 +587,7 @@ class RatingScaleSimulator(HerdingSimulator):
             return 4
 
     def simulate_visitor_journey(
-        self, simulated_reviews: np.ndarray, simulation_id: int, use_h_u: bool = False, **kwargs
+        self, simulated_reviews: Deque, simulation_id: int, use_h_u: bool = False, **kwargs
     ) -> Union[int, None]:
         # Run the visitor journey the same way at first
         rating_index = super(RatingScaleSimulator, self).simulate_visitor_journey(

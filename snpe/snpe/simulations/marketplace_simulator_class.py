@@ -250,7 +250,7 @@ class MarketplaceSimulator(RatingScaleSimulator):
             # as in the marketplace simulation, parameters run from 0 to num_marketplaces X num_products
             simulation_id = (marketplace_id * self.num_products) + chosen_product
             rating_index = self.simulate_visitor_journey(
-                simulated_reviews=simulated_reviews[chosen_product][-1],
+                simulated_reviews=simulated_reviews[chosen_product],
                 simulation_id=simulation_id,
                 use_h_u=False,
                 product_final_ratings=pred_product_ratings[chosen_product, :],
