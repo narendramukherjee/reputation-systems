@@ -394,6 +394,12 @@ class HerdingSimulator(DoubleRhoSimulator):
         return h_p
 
     def herding(self, rating_index: int, simulated_reviews: Deque, simulation_id: int, use_h_u: bool = False) -> int:
+        assert (
+            np.sum(simulated_reviews[-1]) - np.sum(simulated_reviews[0]) >= self.min_reviews_for_herding
+        ), f"""
+        Minimum {self.min_reviews_for_herding} reviews need to have been obtained for herding to happen,
+        found only {np.sum(simulated_reviews[-1]) - np.sum(simulated_reviews[0])} instead
+        """
         # Check that the whole timeseries of simulated_reviews has been supplied
         if len(simulated_reviews) == 1:
             np.testing.assert_array_equal(simulated_reviews[0], np.ones(5))
