@@ -60,7 +60,6 @@ class BaseInference:
                 {
                     "previous_rating_measure": "mean",
                     "min_reviews_for_herding": 5,
-                    "herding_differentiating_measure": "mean",
                     "one_star_lowest_limit": -1.5,
                     "five_star_highest_limit": 1.5,
                     "max_bias_5_star": 0.5,
@@ -73,7 +72,6 @@ class BaseInference:
                 {
                     "previous_rating_measure": "mean",
                     "min_reviews_for_herding": 5,
-                    "herding_differentiating_measure": "mean",
                     "one_star_lowest_limit": -1.5,
                     "five_star_highest_limit": 1.5,
                     "max_bias_5_star": 0.5,
