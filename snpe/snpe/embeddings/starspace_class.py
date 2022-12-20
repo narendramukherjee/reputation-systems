@@ -16,7 +16,7 @@ class StarSpaceEmbedder:
     def __init__(self, binary_path: Path = BINARY_PATH, artifact_path: Path = ARTIFACT_PATH):
         self.starspace_binary = binary_path / "starspace"
         self.starspace_output = artifact_path / "productspace"
-        self.artifact_path = ARTIFACT_PATH
+        self.artifact_path = artifact_path
         self.starspace_params = STARSPACE_PARAMS
         self.starspace_params["thread"] = mp.cpu_count()
         self.trained = False
@@ -51,8 +51,8 @@ class StarSpaceEmbedder:
         print(f"Test set size: {pageview_test.shape}")
         # Save the train and test sets
         print("Saving train and test datasets")
-        self.train_path = ARTIFACT_PATH / "pageview_train.txt"
-        self.test_path = ARTIFACT_PATH / "pageview_test.txt"
+        self.train_path = self.artifact_path / "pageview_train.txt"
+        self.test_path = self.artifact_path / "pageview_test.txt"
         pageview_train.to_csv(self.train_path, index=False, header=False, encoding="utf-8")
         pageview_test.to_csv(self.test_path, index=False, header=False, encoding="utf-8")
 
@@ -88,7 +88,7 @@ class StarSpaceEmbedder:
         assert self.trained, "Starspace model needs to be trained before user embeddings are calculated"
 
         # Load up the trained product embeddings
-        product_embeddings = pd.read_csv(ARTIFACT_PATH / "productspace.tsv", sep="\t", header=None)
+        product_embeddings = pd.read_csv(self.artifact_path / "productspace.tsv", sep="\t", header=None)
         # Product names will be used as index, so that it is easier to extract embeddings from this DF
         product_embeddings.set_index(0, inplace=True)
 
@@ -106,6 +106,6 @@ class StarSpaceEmbedder:
 
         # Finally convert this numpy array of user embeddings to a dataframe and save it the same way
         # as the product embeddings
-        user_embeddings = pd.DataFrame(user_embeddings, columns=None, index=None)
-        self.user_embedding_path = ARTIFACT_PATH / "userspace.tsv"
-        user_embeddings.to_csv(self.user_embedding_path, index=False, header=False, sep="\t")
+        user_embeddings_df = pd.DataFrame(user_embeddings, columns=None, index=None)
+        self.user_embedding_path = self.artifact_path / "userspace.tsv"
+        user_embeddings_df.to_csv(self.user_embedding_path, index=False, header=False, sep="\t")
