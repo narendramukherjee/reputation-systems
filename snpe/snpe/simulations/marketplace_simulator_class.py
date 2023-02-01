@@ -2,6 +2,7 @@ import multiprocessing as mp
 
 from collections import deque
 from multiprocessing import Manager, Queue
+from pathlib import Path
 from threading import Thread
 from typing import Deque, List, Optional
 
@@ -11,24 +12,25 @@ import torch
 
 from joblib import Parallel, delayed
 from scipy.spatial.distance import cdist
+from snpe.embeddings import ARTIFACT_PATH
 from snpe.embeddings.embeddings_density_est_GMM import EmbeddingDensityGMM
 from snpe.embeddings.embeddings_to_ratings import EmbeddingRatingPredictor
 from snpe.utils.functions import check_existing_reviews, check_simulation_parameters
 from snpe.utils.statistics import review_histogram_means
 from snpe.utils.tqdm_utils import multi_progressbar
 
-from .simulator_class import HerdingSimulator
+from .simulator_class import RatingScaleSimulator
 
 
-class MarketplaceSimulator(HerdingSimulator):
+class MarketplaceSimulator(RatingScaleSimulator):
     def __init__(self, params: dict):
         self.num_products = params["num_products"]
         self.num_total_marketplace_reviews = params["num_total_marketplace_reviews"]
         self.consideration_set_size = params["consideration_set_size"]
         super(MarketplaceSimulator, self).__init__(params)
 
-    def load_embedding_density_estimators(self) -> None:
-        self.embedding_density_estimator = EmbeddingDensityGMM()
+    def load_embedding_density_estimators(self, artifact_path: Path) -> None:
+        self.embedding_density_estimator = EmbeddingDensityGMM(artifact_path=artifact_path)
         self.embedding_density_estimator.load()
         print(f"Loaded product embedding density estimator: \n {self.embedding_density_estimator.product_model}")
         print(f"Loaded user embedding density estimator: \n {self.embedding_density_estimator.user_model}")
@@ -42,8 +44,8 @@ class MarketplaceSimulator(HerdingSimulator):
             same shape to be able to calculate cosine similarities between them.
             """
 
-    def load_embedding_rating_predictor(self) -> None:
-        self.embedding_rating_predictor = EmbeddingRatingPredictor()
+    def load_embedding_rating_predictor(self, artifact_path: Path) -> None:
+        self.embedding_rating_predictor = EmbeddingRatingPredictor(artifact_path=artifact_path)
         self.embedding_rating_predictor.load()
         print(f"Loaded embedding -> rating predictor model: \n {self.embedding_rating_predictor.model}")
 
@@ -67,6 +69,7 @@ class MarketplaceSimulator(HerdingSimulator):
         simulation_parameters: dict = None,
         existing_reviews: Optional[List[np.ndarray]] = None,
         product_embeddings: Optional[np.ndarray] = None,
+        embeddings_artifact_path: Path = ARTIFACT_PATH,
         **kwargs,
     ) -> None:
         assert (
@@ -116,8 +119,8 @@ class MarketplaceSimulator(HerdingSimulator):
             simulation_parameters, num_simulations * self.num_products
         )
         self.simulation_parameters = simulation_parameters
-        self.load_embedding_density_estimators()
-        self.load_embedding_rating_predictor()
+        self.load_embedding_density_estimators(artifact_path=embeddings_artifact_path)
+        self.load_embedding_rating_predictor(artifact_path=embeddings_artifact_path)
         # Change the random_state of the embedding density estimators to None
         # This is needed to get distinct embeddings during sampling, otherwise all marketplaces and users end up
         # being the same
@@ -217,7 +220,13 @@ class MarketplaceSimulator(HerdingSimulator):
             for product in range(self.num_products):
                 product_reviews = existing_reviews[product]
                 for review in product_reviews:
-                    simulated_reviews[product].append(review)
+                    # We use the same manner of appending existing review histograms to simulated_reviews as if
+                    # those histograms were actually produced during simulations. This ensures that the same dtype is
+                    # appended to the deque always and keeps the size of the deque as small as possible
+                    current_histogram = simulated_reviews[product][-1].copy()
+                    rating_index = np.where(review - current_histogram)[0][0]
+                    current_histogram[rating_index] += 1
+                    simulated_reviews[product].append(current_histogram)
                     if len(simulated_reviews[product]) > 1:
                         assert (
                             np.sum(simulated_reviews[product][-1]) - np.sum(simulated_reviews[product][-2])
@@ -228,6 +237,9 @@ class MarketplaceSimulator(HerdingSimulator):
                         """
                     current_total_marketplace_reviews += 1
                     total_visitors -= 1
+                    # Since we are following the total number of marketplace ratings (=existing reviews + new reviews),
+                    # we put progress on the multi-progressbar as if a new rating was accumulated
+                    queue.put(f"update{marketplace_id}")
 
         for visitor in range(total_visitors):
             chosen_product = self.simulate_visitor_choice(product_embeddings, simulated_reviews)
@@ -238,7 +250,7 @@ class MarketplaceSimulator(HerdingSimulator):
             # as in the marketplace simulation, parameters run from 0 to num_marketplaces X num_products
             simulation_id = (marketplace_id * self.num_products) + chosen_product
             rating_index = self.simulate_visitor_journey(
-                simulated_reviews=simulated_reviews[chosen_product][-1],
+                simulated_reviews=simulated_reviews[chosen_product],
                 simulation_id=simulation_id,
                 use_h_u=False,
                 product_final_ratings=pred_product_ratings[chosen_product, :],

@@ -15,8 +15,8 @@ from snpe.inference.inference_class import TimeSeriesInference
 
 # LOCAL_ARTIFACT_PATH = Path("./artifacts/hyperparameter_tuning/cnn_tuning")
 # GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/double_herding_simulator")
-LOCAL_ARTIFACT_PATH = Path("./artifacts/marketplace")
-GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/marketplace")
+LOCAL_ARTIFACT_PATH = Path("./artifacts/rating_spacing_simulator")
+GCS_ARTIFACT_PATH = Path("../../gcs_mount/artifacts/rating_spacing_simulator")
 
 
 SEARCH_SPACE = {
@@ -103,7 +103,10 @@ def main() -> None:
     )
     parser.add_argument("--compute_location", required=True, type=str, choices=["local", "gcs"])
     parser.add_argument(
-        "--simulator_type", required=True, type=str, choices=["double_rho", "herding", "double_herding", "marketplace"]
+        "--simulator_type",
+        required=True,
+        type=str,
+        choices=["double_rho", "herding", "double_herding", "rating_scale", "marketplace"],
     )
     args, *_ = parser.parse_known_args()
 
@@ -125,7 +128,7 @@ def main() -> None:
             high=torch.tensor([4.0, 4.0]).type(torch.FloatTensor),
             device="cuda",
         )
-    elif args.simulator_type in ("herding", "marketplace"):
+    elif args.simulator_type == "herding":
         parameter_prior = sbi_utils.BoxUniform(
             low=torch.tensor([0.0, 0.0, 0.0]).type(torch.FloatTensor),
             high=torch.tensor([4.0, 4.0, 1.0]).type(torch.FloatTensor),
@@ -135,6 +138,12 @@ def main() -> None:
         parameter_prior = sbi_utils.BoxUniform(
             low=torch.tensor([0.0, 0.0, 0.0, 0.0]).type(torch.FloatTensor),
             high=torch.tensor([4.0, 4.0, 1.0, 1.0]).type(torch.FloatTensor),
+            device="cuda",
+        )
+    elif args.simulator_type in ("rating_scale", "marketplace"):
+        parameter_prior = sbi_utils.BoxUniform(
+            low=torch.tensor([0.0, 0.0, 0.0, 0.5, 0.25, 0.25, 0.5, 0.0]).type(torch.FloatTensor),
+            high=torch.tensor([4.0, 4.0, 1.0, 1.0, 0.75, 0.75, 1.0, 1.0]).type(torch.FloatTensor),
             device="cuda",
         )
     else:
